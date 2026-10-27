@@ -102,7 +102,7 @@
     if (!st.data) return gate();
     const model = A.build(st.data.events, st.data.students, st.f);
     const t = MDQ.teacherSession.get();
-    const tabs = [['overview', 'الملخص العام'], ['students', 'متابعة الطالبات'], ['weak', 'جوانب الضعف'], ...((MDQ_CONFIG.FEATURES || {}).outcomes && MDQ.outcomes ? [['outcomes', 'نواتج التعلم']] : []), ...((MDQ_CONFIG.FEATURES || {}).agent && MDQ.agent ? [['agent', 'أداة الرصد']] : []), ['attempts', 'سجل المحاولات'], ['export', 'التصدير والتقارير'], ['bank', 'بنك الأسئلة'], ['settings', 'الإعدادات'], ['connect', MDQ.api.enabled ? 'الربط وGoogle Drive' : 'إعداد نموذج Google']];
+    const tabs = [['overview', 'الملخص العام'], ['students', 'متابعة الطالبات'], ['weak', 'جوانب الضعف'], ...((MDQ_CONFIG.FEATURES || {}).outcomes && MDQ.outcomes ? [['outcomes', 'نواتج التعلم']] : []), ...((MDQ_CONFIG.FEATURES || {}).agent && MDQ.agent ? [['agent', 'أداة الرصد']] : []), ...((MDQ_CONFIG.FEATURES || {}).goals && MDQ.goals && MDQ.goals.view ? [['goals', 'وكيل الأهداف']] : []), ['attempts', 'سجل المحاولات'], ['export', 'التصدير والتقارير'], ['bank', 'بنك الأسئلة'], ['settings', 'الإعدادات'], ['connect', MDQ.api.enabled ? 'الربط وGoogle Drive' : 'إعداد نموذج Google']];
     root.innerHTML = `
       <div class="t-head">
         <div><p class="eyebrow">لوحة المعلمة</p><h1>متابعة أداء الطالبات</h1>
@@ -121,7 +121,7 @@
     st.msg = '';
     const body = $('#tbody');
     if (st.student) studentView(body, model);
-    else ({ overview: overviewView, students: studentsView, weak: weakView, outcomes: outcomesView, agent: agentView, attempts: attemptsView, export: exportView, bank: bankView, settings: settingsView, connect: connectView }[st.tab])(body, model);
+    else ({ overview: overviewView, students: studentsView, weak: weakView, outcomes: outcomesView, agent: agentView, goals: goalsView, attempts: attemptsView, export: exportView, bank: bankView, settings: settingsView, connect: connectView }[st.tab])(body, model);
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { st.tab = b.dataset.tab; st.student = null; st.page = 0; render(); });
     $('#refresh').onclick = () => st.forms ? importScreen() : st.demo ? render() : load();
     $('#logout').onclick = () => MDQ.auth.logout();
@@ -287,6 +287,13 @@
       const res = await MDQ.saveFile('نواتج_التعلم_ومدى_تحققها.csv', new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
       $('#tmsg').innerHTML = `<div class="banner info" style="margin-bottom:12px">${res === 'declined' ? 'أُلغي حفظ الملف.' : 'جُهّز ملف نواتج التعلم.'}</div>`;
     };
+  }
+
+  /* ---------------- وكيل الأهداف ---------------- */
+  function goalsView(body) {
+    const model = A.build(st.data.events, st.data.students, {});
+    if (!model.students.length) { body.innerHTML = empty(); return; }
+    MDQ.goals.view(body, { model, esc, pill, T, I, B, render, openStudent: id => { st.student = id; render(); }, msg: t => { $('#tmsg').innerHTML = `<div class="banner info" style="margin-bottom:12px">${esc(t)}</div>`; } });
   }
 
   /* ---------------- أداة الرصد (استشارية — للمعلمة فقط) ---------------- */

@@ -8,7 +8,7 @@
    ============================================================ */
 (function () {
   const GK = 'mdq.agent.goals.v1', LK = 'mdq.agent.goallog.v1', MK = 'mdq.agent.materials.v1';
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const B = () => MDQ.bank;
   const bool = v => v === true || v === 1 || v === '1' || (typeof v === 'string' && v.trim().toLowerCase() === 'true');
   const pctOf = (a, b) => b ? Math.round(a / b * 100) : null;
@@ -277,6 +277,6 @@
   function removeGoal(id) { wr(GK, rd(GK, []).filter(g => g.id !== id)); wr(MK, mats().filter(m => m.goalId !== id)); log(id, 'حُذف الهدف', ''); }
 
   MDQ.goals = { VERSION, CAUSES, normCls, scope, diagnose, planStep, evaluate, create, update, answer, review, cardDraft, promptPack,
-    list: () => rd(GK, []), log: () => rd(LK, []), mats, addMaterial, approveMaterial, saveMaterial, removeGoal,
+    list: () => rd(GK, []), log: () => rd(LK, []), logEvent: log, mats, addMaterial, approveMaterial, saveMaterial, removeGoal,
     classes: model => [...new Set(model.students.map(s => normCls(s.className)))].sort() };
 })();

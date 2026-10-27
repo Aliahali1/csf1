@@ -7,6 +7,73 @@
     const lessonName = id => (B.lesson(id) || {}).lesson || id;
     const statusCls = s => ({ 'تحقق الهدف': 'ok', 'تحسّن': 'ok', 'لم يتحسن': 'low', 'بيانات قليلة': 'mid' }[s] || 'na');
 
+
+    /* ---- الاختبار البعدي ---- */
+    const PEND = (MDQ.post._pending = MDQ.post._pending || {});
+    const optS = (arr, sel) => arr.map(([v, t]) => `<option value="${esc(v)}" ${String(v) === String(sel) ? 'selected' : ''}>${esc(t)}</option>`).join('');
+    const stLbl = {exact: 'مطابق تام', similar: 'اسم مشابه', none: 'لا مطابق', dupe: 'اسم مكرر في الموقع', empty: 'اسم فارغ'};
+    const postSection = g => {
+      const P = MDQ.post, pend = PEND[g.id];
+      let h = `<h3 style="margin:14px 0 4px">الاختبار البعدي وقياس الأثر</h3>`;
+      if (!g.post && !pend) {
+        return h + `<p class="muted small-print">ارفعي ملف Excel/CSV فيه عمود أسماء الطالبات وعمود نتيجة هذا الناتج. بيانات الطالبات في الموقع هي خط الأساس، والمستهدف (${g.target}٪) هو ما حدّدتِه. يبقى الملف في متصفحكِ ولا يُرسل لأي جهة.</p>
+          <div class="row"><input type="file" accept=".xlsx,.csv" data-postfile><button class="btn small" data-act="postload">قراءة الملف</button></div>`;
+      }
+      if (!g.post && pend) {
+        const sh = pend.shape, def = B.question(g.qid), vals = c => sh.rows.map(r => r.cells[c]);
+        const vc = pend.valCol != null ? pend.valCol : (sh.valCols[0] ?? 0), mode = pend.mode || P.detectMode(vals(vc), def);
+        return h + `<div class="banner info"><div><b>الملف:</b> ${esc(pend.file)} · ${sh.rows.length} صفًا. حدّدي الأعمدة ثم اضغطي «ابدئي المطابقة».</div></div>
+          <div class="filters" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:8px 0">
+            <label>عمود الأسماء<select class="t-input" data-pn>${optS(sh.headers.map((x, i) => [i, x || 'عمود ' + (i + 1)]), sh.nameCol)}</select></label>
+            <label>عمود نتيجة هذا الناتج<select class="t-input" data-pv>${optS(sh.headers.map((x, i) => [i, x || 'عمود ' + (i + 1)]), vc)}</select></label>
+            <label>طريقة التصحيح<select class="t-input" data-pm>${optS([['choice', 'الخلية = الخيار المختار (يُصحَّح بمفتاح السؤال)'], ['score', 'الخلية = صح/خطأ أو 0/1 أو درجة']], mode)}</select></label>
+            <label>الدرجة العظمى<input class="t-input" data-pmax type="number" min="1" value="${pend.max || 1}" style="width:80px"></label>
+            <label>النجاح عند ٪<input class="t-input" data-ppass type="number" min="1" max="100" value="${pend.pass || 100}" style="width:80px"></label></div>
+          <p class="muted small-print">معاينة (أول 3 صفوف): ${sh.rows.slice(0, 3).map(r => esc((r.cells[sh.nameCol] || '—') + ' ← ' + (r.cells[vc] || '—'))).join(' | ')}<br>في وضع «الخيار المختار» تُقبل الحروف (أ ب ج د) بترتيب خيارات السؤال في بنك الموقع، أو نص الخيار نفسه. راجعي المعاينة بعد المطابقة.</p>
+          <div class="row"><button class="btn gold small" data-act="postgo">ابدئي المطابقة</button><button class="btn ghost small" data-act="postcancel">إلغاء</button></div>`;
+      }
+      const r = P.impact(g, g.post, model), t = r.tally, ok = !t.pending;
+      const scopeSt = G.scope(model, g.cls, g.answers).students.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+      const asks = r.ms.filter(m => m.needs);
+      h += `<p class="muted small-print">${esc(g.post.file)} · ${esc(T(g.post.at))} · العمود «${esc(g.post.valName)}»</p>
+        <div class="kpis num"><div class="panel kpi"><b>${t.rows}</b><small>صفوف في الملف</small></div><div class="panel kpi"><b>${t.exact}</b><small>مطابقة تامة (قُبلت آليًا)</small></div>
+          <div class="panel kpi"><b>${t.byTeacher}</b><small>أقرّتها المعلمة</small></div><div class="panel kpi"><b>${t.excluded}</b><small>مستبعدة</small></div>
+          <div class="panel kpi"><b>${t.pending}</b><small>بانتظار قراركِ</small></div></div>`;
+      if (asks.length) {
+        h += `<div class="banner bad" style="margin:8px 0"><div><b>توقفتُ وأحتاج قراركِ:</b> الأسماء التالية ليست مطابقة تامة لطالبات الموقع (أو مكررة). لن تدخل في القياس حتى تقرّري.</div></div>
+          <div class="t-scroll" style="max-height:340px"><table class="t-table"><thead><tr><th>الاسم في ملف الاختبار</th><th>الحالة</th><th>القرار</th></tr></thead><tbody>
+          ${asks.map(m => {
+            const cs = m.cands.map(c => [c.s.studentId, `${c.s.name} · ${G.normCls(c.s.className)}${c.score < 1 ? ' · تشابه ' + Math.round(c.score * 100) + '٪' : ''}`]);
+            const rest = scopeSt.filter(s => !m.cands.some(c => c.s.studentId === s.studentId)).map(s => [s.studentId, `${s.name} · ${G.normCls(s.className)}`]);
+            const why = m.multi ? 'صفّان لطالبة واحدة' : stLbl[m.status];
+            return `<tr data-row="${esc(m.row.key)}"><td>${esc(m.name)}</td><td><span class="pill ${m.status === 'similar' ? 'mid' : 'low'}">${esc(why)}</span></td>
+              <td><select class="t-input" data-dec><option value="">— اختاري —</option><option value="x">استبعاد هذه الطالبة</option>${cs.length ? `<optgroup label="مرشحات من الموقع">${optS(cs, m.final ? m.final.studentId : '')}</optgroup>` : ''}<optgroup label="كل طالبات النطاق">${optS(rest, '')}</optgroup></select></td></tr>`;
+          }).join('')}</tbody></table></div>`;
+      }
+      const autos = r.ms.filter(m => m.final && !m.needs);
+      h += `<details style="margin:6px 0"><summary class="muted small-print">الطالبات المقبولة في القياس (${autos.length}) — راجعي أنها صحيحة</summary><div class="t-scroll" style="max-height:220px"><table class="t-table"><tbody>
+        ${autos.map(m => `<tr data-row="${esc(m.row.key)}"><td>${esc(m.name)}</td><td>${esc(m.final.name)}</td><td><span class="pill ${m.byTeacher ? 'mid' : 'ok'}">${m.byTeacher ? 'بقرارك' : 'تام'}</span></td><td><button class="linkish" data-undo>إلغاء القبول</button></td></tr>`).join('') || '<tr><td class="muted">لا شيء بعد.</td></tr>'}</tbody></table></div></details>`;
+      if (ok) {
+        const cls = r.status.startsWith('تحقق') ? 'ok' : r.status.startsWith('تحسّن') ? 'mid' : 'low';
+        h += `<h3 style="margin:12px 0 4px">نتيجة قياس الأثر <span class="pill ${cls}">${esc(r.status)}</span></h3>
+          <div class="kpis num"><div class="panel kpi"><b>${r.base == null ? '—' : r.base + '٪'}</b><small>خط الأساس من الموقع (ن=${r.n})</small></div>
+            <div class="panel kpi"><b>${r.after == null ? '—' : r.after + '٪'}</b><small>الاختبار البعدي</small></div>
+            <div class="panel kpi"><b>${r.gain == null ? '—' : (r.gain >= 0 ? '+' : '') + r.gain}</b><small>الفرق (نقطة مئوية)</small></div>
+            <div class="panel kpi"><b>${g.target}٪</b><small>المستهدف</small></div>
+            <div class="panel kpi"><b>${r.roi == null ? '—' : r.roi + '٪'}</b><small>نسبة الأثر العائد (الفجوة المغلقة)</small></div>
+            <div class="panel kpi"><b>${r.hake == null ? '—' : r.hake + '٪'}</b><small>المكسب المُطبَّع</small></div></div>
+          <p>من ${r.n} طالبة مقارَنة: <b>${r.up}</b> انتقلت من «لم تتحقق» إلى «تحققت»، و<b>${r.down}</b> تراجعت، و<b>${r.stayLow.length}</b> لم تتحقق في الموقع ولا في البعدي.
+          ${r.noBase ? ` · ${r.noBase} مقبولة بلا محاولات في الموقع على هذا السؤال (خارج المقارنة).` : ''}${r.noPost ? ` · ${r.noPost} بلا إجابة مفهومة في البعدي.` : ''}</p>
+          ${r.stayLow.length ? `<details><summary class="muted small-print">لم تتحقق في الموقع ولا في البعدي (${r.stayLow.length})</summary>${r.stayLow.map(p => `<button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button>`).join('، ')}</details>` : ''}
+          ${r.down ? `<details><summary class="muted small-print">تراجعت (${r.down})</summary>${r.paired.filter(p => p.base.pass && !p.post).map(p => `<button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button>`).join('، ')}</details>` : ''}
+          <div class="banner info" style="margin:8px 0"><div><b>كيف تُقرأ النتيجة:</b> «الأثر العائد» = (البعدي − الأساس) ÷ (المستهدف − الأساس). أي ما أُغلق من الفجوة التي حدّدتِها (100٪ فأكثر = بلغتِ المستهدف). هذه مقارنة وصفية لنفس الطالبات؛ <b>لا تثبت أن التدخل وحده هو السبب</b> لأنه لا توجد مجموعة ضابطة، ولأن أداة الموقع (محاولات بتلميحات) تختلف عن الاختبار البعدي، وقد تدخل عوامل أخرى (تكرار الشرح، التعوّد على السؤال). تقرأها المعلمة مع ملاحظاتها.</div></div>
+          <div class="row"><button class="btn gold small" data-act="postrec">سجّلي النتيجة في سجل الوكيل</button><button class="btn ghost small" data-act="postcsv">${I.download} تنزيل تفاصيل المقارنة (CSV)</button><button class="btn ghost small" data-act="postdel">حذف الاختبار البعدي</button></div>`;
+      } else {
+        h += `<div class="row"><button class="btn ghost small" data-act="postdel">حذف الاختبار البعدي</button></div>`;
+      }
+      return h;
+    };
+
     const goalCard = g => {
       const ev = G.evaluate(g, model), dg = G.diagnose(model, g);
       const blocking = dg.clarify.filter(c => c.blocking && g.answers[c.id] == null);
@@ -43,6 +110,7 @@
               <label><input type="checkbox" data-chk> تقيس ناتج التعلم نفسه وبالمستوى نفسه</label><br>
               <label><input type="checkbox" data-chk> سليمة لغويًا ومناسبة للصف الثالث المتوسط</label></div>
               <button class="btn small" data-act="approve">اعتماد</button>`}</div>`).join('')}` : ''}
+        ${g.paused ? '' : postSection(g)}
         <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="pause">${g.paused ? 'استئناف الوكيل' : 'إيقاف الوكيل لهذا الهدف'}</button><button class="btn ghost small" data-act="del">حذف الهدف</button></div>
       </section>`;
     };
@@ -77,8 +145,43 @@
     body.querySelectorAll('[data-g]').forEach(card => {
       const goal = g(card.dataset.g);
       card.querySelectorAll('[data-ans]').forEach(b => b.onclick = () => { G.answer(goal, b.dataset.ans, b.dataset.k, b.dataset.l); ctx.render(); });
+
+      const PM = MDQ.post;
+      const fin = card.querySelector('[data-postfile]');
+      card.querySelectorAll('[data-dec]').forEach(sel => sel.onchange = () => { if (!sel.value) return; const tr = sel.closest('[data-row]'); PM.decide(goal, tr.dataset.row, sel.value, tr.children[0].textContent + ' ← ' + sel.options[sel.selectedIndex].text); ctx.render(); });
+      card.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => { const tr = b.closest('[data-row]'); PM.decide(goal, tr.dataset.row, 'x', 'ألغت المعلمة قبول: ' + tr.children[0].textContent); ctx.render(); });
+      card.querySelectorAll('[data-pn],[data-pv],[data-pm],[data-pmax],[data-ppass]').forEach(el => el.onchange = () => {
+        const p = PEND[goal.id]; if (!p) return;
+        p.shape.nameCol = +card.querySelector('[data-pn]').value; p.valCol = +card.querySelector('[data-pv]').value;
+        const m = card.querySelector('[data-pm]').value; p.mode = el.matches('[data-pv]') ? undefined : m;
+        p.max = +card.querySelector('[data-pmax]').value || 1; p.pass = +card.querySelector('[data-ppass]').value || 100; ctx.render();
+      });
       card.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
         const a = b.dataset.act, dg = G.diagnose(model, goal), step = G.planStep(goal, dg);
+        if (a === 'postload') {
+          const f = fin && fin.files[0]; if (!f) { ctx.msg('اختاري ملف Excel أو CSV أولًا.'); return; }
+          try { const sh = MDQ.post.shape(await MDQ.post.readFile(f)); PEND[goal.id] = { file: f.name, shape: sh }; ctx.render(); } catch (e) { ctx.msg(e.message || 'تعذّرت قراءة الملف.'); }
+          return;
+        }
+        if (a === 'postcancel') { delete PEND[goal.id]; ctx.render(); return; }
+        if (a === 'postgo') {
+          const p = PEND[goal.id], sh = p.shape, vc = p.valCol != null ? p.valCol : (sh.valCols[0] ?? 0), def = B.question(goal.qid);
+          const mode = p.mode || MDQ.post.detectMode(sh.rows.map(r => r.cells[vc]), def);
+          if (vc === sh.nameCol) { ctx.msg('عمود النتيجة يجب أن يختلف عن عمود الأسماء.'); return; }
+          MDQ.post.attach(goal, { file: p.file, nameCol: 0, valCol: 1, valName: sh.headers[vc] || ('عمود ' + (vc + 1)), mode, max: p.max || 1, pass: p.pass || 100,
+            rows: sh.rows.map(r => ({ key: r.key, line: r.line, cells: [r.cells[sh.nameCol], r.cells[vc]] })) });
+          delete PEND[goal.id]; ctx.render(); return;
+        }
+        if (a === 'postdel') { if (confirm('حذف ملف الاختبار البعدي وقراراتكِ من هذا الهدف؟')) { MDQ.post.clear(goal); ctx.render(); } return; }
+        if (a === 'postrec') { const r = MDQ.post.record(goal, model); ctx.msg('سُجّلت النتيجة في سجل الوكيل: الأثر العائد ' + (r.roi == null ? '—' : r.roi + '٪') + '.'); ctx.render(); return; }
+        if (a === 'postcsv') {
+          const r = MDQ.post.impact(goal, goal.post, model), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+          const rows = [['الطالبة في الموقع', 'الفصل', 'الاسم في ملف الاختبار', 'الأساس (الموقع)', 'المحاولات في الموقع', 'القيمة في الاختبار البعدي', 'البعدي', 'التغير'].map(q).join(',')]
+            .concat(r.per.map(p => { const m = r.ms.find(x => x.final && x.final.studentId === p.s.studentId);
+              return [p.name, G.normCls(p.s.className), m ? m.name : '', p.base ? (p.base.pass ? 'تحققت' : 'لم تتحقق') : 'بلا بيانات', p.base ? p.base.attempts : '', p.raw, p.post == null ? 'غير مفهوم' : (p.post ? 'تحققت' : 'لم تتحقق'),
+                p.base && p.post != null ? (!p.base.pass && p.post ? 'تحسّنت' : p.base.pass && !p.post ? 'تراجعت' : 'لا تغيّر') : ''].map(q).join(','); }));
+          await MDQ.saveFile('مقارنة_الاختبار_البعدي.csv', new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' })); return;
+        }
         if (a === 'review') { G.review(goal, model, true); ctx.render(); }
         else if (a === 'pause') { goal.paused = !goal.paused; G.update(goal); ctx.render(); }
         else if (a === 'del') { if (confirm('حذف هذا الهدف ومواده من هذا المتصفح؟')) { G.removeGoal(goal.id); ctx.render(); } }

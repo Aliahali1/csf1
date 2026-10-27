@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm'), assert = r
 const root = path.join(__dirname, '..');
 const ctx = { window: {}, document: { createElement() { return {}; } }, localStorage: (() => { const m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; } }; })(), sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} }, console, navigator: {}, addEventListener() {}, removeEventListener() {}, setInterval() { return 0; }, clearInterval() {}, setTimeout, fetch() {}, URL };
 ctx.window = ctx; ctx.self = ctx; ctx.MDQ = {}; vm.createContext(ctx);
-['js/config.js', 'js/icons.js', 'js/questions.js', 'js/rules.js', 'js/forms.js', 'js/storage.js', 'js/tracker.js', 'js/analytics.js', 'js/agent.js', 'js/outcomes.js', 'js/goals.js']
+['js/config.js', 'js/icons.js', 'js/questions.js', 'js/rules.js', 'js/forms.js', 'js/storage.js', 'js/tracker.js', 'js/analytics.js', 'js/agent.js', 'js/outcomes.js', 'js/goals.js', 'js/post.js']
   .forEach(f => { try { vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f }); } catch (e) { console.log('تحذير تحميل', f, e.message.slice(0, 80)); } });
 const M = ctx.MDQ; let n = 0; const ok = (c, m) => { assert(c, m); n++; };
 ok(M.bank && M.bank.QUESTIONS.length === 37, 'عدد الأسئلة 37');
@@ -68,4 +68,43 @@ const mt = G.addMaterial(goal.id, 'بطاقة', 'نص');
 ok(G.approveMaterial(mt, [true, true, false]) === false && G.mats()[0].status === 'مسودة', 'لا اعتماد بلا مراجعة بشرية كاملة');
 ok(G.approveMaterial(mt, [true, true, true]) === true, 'الاعتماد بعد المراجعة');
 ok(!/ST-0000|طالبة 0/.test(G.promptPack(goal, st1)), 'موجّه النموذج اللغوي بلا بيانات طالبات');
+// ---- الاختبار البعدي: مطابقة الأسماء + الأثر ----
+const P = M.post;
+const names = ['فاطمة محمد العتيبي', 'سارة أحمد الغامدي', 'نورة خالد الزهراني', 'ريم سعد القحطاني', 'لمى علي الحربي', 'هند ناصر السلمي', 'جود فهد الشريف', 'مها عبدالله البقمي', 'أمل صالح الثقفي', 'لين ماجد العمري'];
+const specP = names.map((nm, i) => ({ name: nm, tries: i < 3 ? [true] : [false, false, true] }));   // أساس: 3 من 10 = 30٪
+const mP = mkModel(specP);
+const gP = G.create(mP, { qid: 'db-04', outcome: 'x', cls: '3/1', metric: 'first', target: 80 });
+ok(gP.baseline.pct === 30, 'الأساس من بيانات الموقع = 30٪');
+const okTxt = qd.options.find(o => o.k === qd.answer).text, badTxt = qd.options.find(o => o.k !== qd.answer).text;
+const post = [['الاسم', 'الإجابة'],
+  ['فاطمة محمد العتيبي', okTxt], ['سارة أحمد الغامدي', okTxt], ['نوره خالد الزهراني', okTxt],      // الثالثة: تاء مربوطة (مطابقة بعد التوحيد)
+  ['ريم سعد القحطاني', okTxt], ['لمى علي الحربى', okTxt], ['هند ناصر السلمي', okTxt], ['جود فهد الشريف', okTxt],
+  ['مها عبدالله البقمي', badTxt], ['أمل صالح', okTxt],                                              // مشابه (اسم مختصر)
+  ['طالبة ليست موجودة', okTxt]];                                                                    // لا مطابق
+const sh = P.shape(post);
+ok(sh.nameCol === 0 && sh.valCols[0] === 1, 'يكتشف عمود الأسماء');
+ok(P.detectMode(sh.rows.map(r => r.cells[1]), qd) === 'choice', 'يكتشف وضع الاختيار');
+G.update(Object.assign(gP, {})); P.attach(gP, { file: 't.csv', nameCol: 0, valCol: 1, valName: 'الإجابة', mode: 'choice', max: 1, pass: 100, rows: sh.rows.map(r => ({ key: r.key, line: r.line, cells: [r.cells[0], r.cells[1]] })) });
+let gP2 = G.list().find(x => x.id === gP.id), r1 = P.impact(gP2, gP2.post, mP);
+ok(r1.tally.pending === 2 && r1.status.includes('بانتظار'), 'الصفان غير المطابقين يوقفان القياس بانتظار المعلمة');
+ok(r1.ms.find(m => m.name === 'أمل صالح').status === 'similar' && r1.ms.find(m => m.name === 'طالبة ليست موجودة').status === 'none', 'تشابه ولا مطابق');
+ok(r1.ms.find(m => m.name === 'لمى علي الحربى').status === 'exact', 'اختلاف الألف المقصورة/الياء لا يمنع المطابقة التامة');
+ok(!r1.per.some(p => p.name === 'أمل لا يوجد'), 'لا تُحتسب غير المقرّة');
+// المعلمة تقرّ المشابه وتستبعد غير الموجود
+const rk = n => r1.ms.find(m => m.name === n).row.key, amal = mP.students.find(s => s.name === 'أمل صالح الثقفي');
+P.decide(gP2, rk('أمل صالح'), amal.studentId, 'ok'); P.decide(gP2, rk('طالبة ليست موجودة'), 'x', 'x');
+gP2 = G.list().find(x => x.id === gP.id); const r2 = P.impact(gP2, gP2.post, mP);
+ok(r2.tally.pending === 0 && r2.n === 9 && r2.base === 33 && r2.after === 89, 'بعد القرارات: ن=9، الأساس 33٪، البعدي 89٪');
+ok(r2.up === 5 && r2.down === 0 && r2.roi === Math.round((89 - 33) / (80 - 33) * 100) && r2.status.startsWith('تحقق'), 'الأثر العائد وعدد المتحسنات');
+ok(r2.per.length === 9 && !r2.per.some(p => p.name === 'طالبة ليست موجودة'), 'المستبعدة خارج الحساب');
+// صفّان لطالبة واحدة يوقفان القياس
+const dupPost = sh.rows.concat([{ key: 'rX', line: 99, cells: ['فاطمة محمد العتيبي', okTxt] }]);
+ok(P.impact(gP2, Object.assign({}, gP2.post, { rows: dupPost.map(r => ({ key: r.key, cells: [r.cells[0], r.cells[1]] })) }), mP).tally.pending >= 1, 'صفّان لنفس الطالبة: يطلب قرارًا');
+// اسم مكرر في الموقع: لا يُقبل آليًا
+const mD = mkModel(names.map((nm, i) => ({ name: i < 2 ? 'مكررة جدا' : nm, tries: [true] })));
+ok(P.match([{ key: 'a', cells: ['مكررة جدا', okTxt] }], 0, mD.students, {})[0].status === 'dupe', 'اسم مكرر في الموقع: يسأل');
+// التصحيح بالدرجة
+ok(P.grade('1', qd, { mode: 'score', max: 1, pass: 100 }) === true && P.grade('0', qd, { mode: 'score', max: 1, pass: 100 }) === false && P.grade('7', qd, { mode: 'score', max: 10, pass: 60 }) === true && P.grade('صح', qd, { mode: 'score' }) === true && P.grade('', qd, { mode: 'score' }) === null, 'تصحيح الدرجات و صح/خطأ');
+ok(P.grade('أ', qd, { mode: 'choice' }) === (qd.options[0].k === qd.answer), 'تصحيح حرف الخيار');
+ok(P.similarity('فاطمة محمد', 'فاطمة محمد العتيبي') >= 0.72 && P.similarity('فاطمة', 'سارة') < 0.72, 'تشابه الأسماء: المختصر نعم والمختلف لا');
 console.log(`نجح: ${n} اختبارًا`);

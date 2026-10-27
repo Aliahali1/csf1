@@ -191,6 +191,31 @@
     return { ms, per, paired, n, base, after, gain, up, down, stayLow, roi, hake, tally, noBase, noPost, status, target: goal.target };
   }
 
+
+  /** توصيات قاعدية من نتائج القياس (للمعلمة؛ لا تُنفَّذ تلقائيًا) */
+  function recommend(goal, r) {
+    if (r.tally.pending) return ['أكملي قرارات مطابقة الأسماء أولًا.'];
+    if (r.n < 8) return ['عدد المقارَنات قليل؛ لا تعتمدي النتيجة قبل استكمال مطابقة المزيد من الطالبات.'];
+    const out = [], low = r.stayLow.length;
+    if (r.after >= goal.target) out.push(`تحقق المستهدف (${r.after}٪ من ${goal.target}٪): ثبّتي ما نفّذتِه ووثّقيه، وانتقلي لناتج آخر.`);
+    else if (r.gain >= 5) out.push(`تحسّن بمقدار ${r.gain} نقطة وبقيت فجوة ${goal.target - r.after} نقطة: كرّري الخطوة نفسها على من لم تتحقق ثم أعيدي القياس.`);
+    else out.push('لم يظهر تحسّن كافٍ: غيّري أسلوب المعالجة (جرّبي سببًا آخر من أسباب «وكيل الأهداف») بدل تكرار الخطوة نفسها.');
+    if (low) out.push(`${low} طالبة لم تتحقق في الموقع ولا في البعدي: خصّيهن بدعم فردي أو مجموعة صغيرة.`);
+    if (r.down) out.push(`${r.down} طالبة تراجعت بعد تحققها سابقًا: راجعي ثبات التعلم (قد تكون صدفة في الموقع أو ضعف مراجعة).`);
+    if (r.noBase) out.push(`${r.noBase} طالبة بلا محاولات في الموقع على هذا السؤال: لا أساس لمقارنتها؛ اجعليهن يحللن السؤال في الموقع لتُقاس بدقة لاحقًا.`);
+    if (r.noPost) out.push(`${r.noPost} طالبة بلا درجة مفهومة في الملف: تحققي من خلاياهن.`);
+    out.push('تذكير: المقارنة وصفية ولا تثبت أن التدخل وحده هو السبب.');
+    return out;
+  }
+  /** صف الجدول: الهدف - الأساس - المتحقق - المستهدف - الأثر - التوصيات */
+  function row(goal, model) {
+    if (!goal.post) return null;
+    const r = impact(goal, goal.post, model);
+    if (r.tally.pending || !r.n) return { goal: goal.outcome, base: '—', after: '—', target: goal.target + '٪', impact: r.tally.pending ? 'بانتظار قرارك في المطابقة' : '—', recs: recommend(goal, r), r };
+    return { goal: goal.outcome, base: r.base + '٪', after: r.after + '٪', target: goal.target + '٪',
+      impact: `${r.gain >= 0 ? '+' : ''}${r.gain} نقطة · نسبة الأثر ${r.roi == null ? 'لا تُحسب (الأساس ≥ المستهدف)' : r.roi + '٪'}`, recs: recommend(goal, r), r };
+  }
+
   /* ---------- الحفظ في الهدف + السجل ---------- */
   function attach(goal, meta) {
     goal.post = Object.assign({ decisions: {} }, meta, { at: new Date().toISOString() });
@@ -209,5 +234,5 @@
     return r;
   }
 
-  MDQ.post = { readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, attach, decide, clear, record, SIM_MIN };
+  MDQ.post = { readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, clear, record, SIM_MIN };
 })();

@@ -8,6 +8,9 @@
     const statusCls = s => ({ 'تحقق الهدف': 'ok', 'تحسّن': 'ok', 'لم يتحسن': 'low', 'بيانات قليلة': 'mid' }[s] || 'na');
 
 
+
+    const resTable = rows => `<div class="t-scroll"><table class="t-table"><thead><tr><th>الهدف</th><th>الأساس (بيانات الموقع)</th><th>المتحقق (الاختبار البعدي)</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th></tr></thead><tbody>
+      ${rows.map(x => `<tr><td>${esc(x.goal)}</td><td class="num">${esc(x.base)}</td><td class="num">${esc(x.after)}</td><td class="num">${esc(x.target)}</td><td>${esc(x.impact)}</td><td><ul style="margin:0;padding-inline-start:18px">${x.recs.map(t => `<li>${esc(t)}</li>`).join('')}</ul></td></tr>`).join('')}</tbody></table></div>`;
     /* ---- الاختبار البعدي ---- */
     const PEND = (MDQ.post._pending = MDQ.post._pending || {});
     const optS = (arr, sel) => arr.map(([v, t]) => `<option value="${esc(v)}" ${String(v) === String(sel) ? 'selected' : ''}>${esc(t)}</option>`).join('');
@@ -56,12 +59,7 @@
       if (ok) {
         const cls = r.status.startsWith('تحقق') ? 'ok' : r.status.startsWith('تحسّن') ? 'mid' : 'low';
         h += `<h3 style="margin:12px 0 4px">نتيجة قياس الأثر <span class="pill ${cls}">${esc(r.status)}</span></h3>
-          <div class="kpis num"><div class="panel kpi"><b>${r.base == null ? '—' : r.base + '٪'}</b><small>خط الأساس من الموقع (ن=${r.n})</small></div>
-            <div class="panel kpi"><b>${r.after == null ? '—' : r.after + '٪'}</b><small>الاختبار البعدي</small></div>
-            <div class="panel kpi"><b>${r.gain == null ? '—' : (r.gain >= 0 ? '+' : '') + r.gain}</b><small>الفرق (نقطة مئوية)</small></div>
-            <div class="panel kpi"><b>${g.target}٪</b><small>المستهدف</small></div>
-            <div class="panel kpi"><b>${r.roi == null ? '—' : r.roi + '٪'}</b><small>نسبة الأثر العائد (الفجوة المغلقة)</small></div>
-            <div class="panel kpi"><b>${r.hake == null ? '—' : r.hake + '٪'}</b><small>المكسب المُطبَّع</small></div></div>
+          ${resTable([P.row(g, model)])}
           <p>من ${r.n} طالبة مقارَنة: <b>${r.up}</b> انتقلت من «لم تتحقق» إلى «تحققت»، و<b>${r.down}</b> تراجعت، و<b>${r.stayLow.length}</b> لم تتحقق في الموقع ولا في البعدي.
           ${r.noBase ? ` · ${r.noBase} مقبولة بلا محاولات في الموقع على هذا السؤال (خارج المقارنة).` : ''}${r.noPost ? ` · ${r.noPost} بلا إجابة مفهومة في البعدي.` : ''}</p>
           ${r.stayLow.length ? `<details><summary class="muted small-print">لم تتحقق في الموقع ولا في البعدي (${r.stayLow.length})</summary>${r.stayLow.map(p => `<button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button>`).join('، ')}</details>` : ''}
@@ -127,6 +125,7 @@
           <label style="flex:1;min-width:160px">ملاحظة<input id="gNote" class="t-input" placeholder="اختياري"></label>
           <button class="btn gold" id="gGo">ابدئي الهدف</button></div>
         <p class="muted small-print">يحسب الوكيل خط الأساس الآن من بياناتكِ، ثم يشخّص ويقترح. بعد تنفيذ الخطوة وإعادة استيراد الردود اضغطي «راجعي» ليقيّم الأثر ويعدّل مساره.</p></section>
+      ${goals.some(x => x.post) ? `<section class="panel card" style="margin-bottom:16px"><h2>ملخص أثر الأهداف (بعد الاختبار البعدي)</h2>${resTable(goals.filter(x => x.post).map(x => MDQ.post.row(x, model)))}<div class="row" style="margin-top:8px"><button class="btn gold small" id="gSum">${I.download} تنزيل الجدول (CSV)</button></div></section>` : ''}
       ${goals.length ? goals.map(goalCard).join('') : '<div class="panel" style="padding:20px"><p class="muted">لا أهداف بعد. حدّدي هدفًا ليبدأ الوكيل.</p></div>'}
       <section class="panel card"><h2>سجل عمل الوكيل (${G.log().length})</h2>
         <div class="t-scroll" style="max-height:240px"><table class="t-table"><thead><tr><th>الوقت</th><th>الحدث</th><th>التفصيل</th></tr></thead><tbody>
@@ -200,6 +199,11 @@
           await MDQ.saveFile('مادة_دعم_معتمدة.doc', new Blob(['﻿' + html], { type: 'application/msword' })); }
       });
     });
+    if ($q('#gSum')) $q('#gSum').onclick = async () => {
+      const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const rows = [['الهدف', 'الأساس', 'المتحقق', 'المستهدف', 'الأثر', 'التوصيات'].map(q).join(',')].concat(goals.filter(x => x.post).map(x => { const r = MDQ.post.row(x, model); return [r.goal, r.base, r.after, r.target, r.impact, r.recs.join(' • ')].map(q).join(','); }));
+      await MDQ.saveFile('ملخص_أثر_الأهداف.csv', new Blob(['\uFEFF' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    };
     $q('#gLog').onclick = async () => {
       const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const rows = [['الوقت', 'الهدف', 'الحدث', 'التفصيل', 'إصدار'].map(q).join(',')].concat(G.log().slice().reverse().map(x => [x.at, x.goalId, x.event, x.detail, x.v].map(q).join(',')));

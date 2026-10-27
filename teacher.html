@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>لوحة المعلمة — مغامرة المهارات الرقمية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="teacher-mode">
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="index.html"><span id="brandIcon"></span><span><b>مغامرة المهارات الرقمية</b><small>لوحة المعلمة</small></span></a>
+    <div class="top-stats" id="topStats"><span class="chip">🔐 منطقة محمية</span></div>
+  </div>
+</header>
+<main>
+  <div class="wrap" id="app" aria-live="polite"><div class="panel" style="padding:24px">جارٍ التحميل…</div></div>
+</main>
+<footer class="foot">
+  <div class="foot-in">
+    <div class="author">إعداد المعلمة: <span>عالية اليامي</span></div>
+    <div><a class="linkish" href="index.html">واجهة الطالبات</a></div>
+  </div>
+</footer>
+<script src="js/config.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/forms.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/agent.js"></script>
+<script src="js/export-excel.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/teacher.js"></script>
+<script>
+  document.getElementById('brandIcon').innerHTML = MDQ.icons.compass;
+  MDQ.settings.loadRemote().finally(function () { MDQ.teacher.mount(document.getElementById('app')); });
+</script>
+</body>
+</html>

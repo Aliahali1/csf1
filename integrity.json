@@ -1,0 +1,16 @@
+{
+  "note": "أصول مجمّدة: أي تغيير فيها يوقف النشر حتى تراجعه المعلمة",
+  "createdFrom": "digital-skills-adventure",
+  "files": {
+    "js/questions.js": "4dab2fc4840bda6fc39b992baa69a0fa98973e94b9b0f6f4e6103212248ca91d",
+    "js/review.js": "bec39b87ece69486f85cca764640f7be00156ee9f223294797dcd239f23463ad",
+    "js/forms.js": "85bb1165a3d20209a67439c3b36abbaf739c0dfb150ccbb82d40bf8ffe48dba6",
+    "js/rules.js": "1ae9a49b80a5cc63cf7a35d16182d0c4f945831bec7db0109550198d1363d199",
+    "js/tracker.js": "aca49f7c70526f69a04fa4863f05ca3271e2679b4fdd6b0da6020827c056bb30",
+    "lessons/cyber.pdf": "8f30cb369d691c9dc5b654111654f46f0dd1df7e3abe13baa2d7855a45d8471a",
+    "lessons/db.pdf": "49b56ddb0d81474706644d9abee3335b4e49a1b6e94d1fdf4774d7b1e36be95c",
+    "lessons/device.pdf": "f0efb11366fbf0b5441ec202d55830374caa9234e2505284cdb56fb9f8f7626d",
+    "lessons/query.pdf": "9eec7269b16fb90f6040a75739fea0b4eb27a62a48d449acefbb0563f6c35ebd",
+    "lessons/reports.pdf": "43273ad3beecd118174a9d815ba628d36aa8d01f61c6b6d9048d302b7ff4620a"
+  }
+}

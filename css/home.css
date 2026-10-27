@@ -1,0 +1,29 @@
+/* تحسينات جمالية للصفحة الرئيسية — إضافة فقط، لا تغيّر منطق الموقع */
+.hero-card{position:relative;overflow:hidden;isolation:isolate}
+.hero-card::before,.hero-card::after{content:"";position:absolute;border-radius:50%;z-index:-1;pointer-events:none;filter:blur(2px)}
+.hero-card::before{width:260px;height:260px;inset-inline-end:-80px;top:-90px;background:radial-gradient(circle,color-mix(in srgb,var(--gold) 45%,transparent),transparent 70%)}
+.hero-card::after{width:220px;height:220px;inset-inline-start:-70px;bottom:-80px;background:radial-gradient(circle,color-mix(in srgb,var(--brand-3) 40%,transparent),transparent 70%)}
+.hero-card h1 span{display:block;margin-top:6px;font-size:.55em;font-weight:600;opacity:.92}
+.hero-card .btn.gold{box-shadow:0 8px 20px -8px color-mix(in srgb,var(--gold) 80%,#000);transition:transform .18s ease,box-shadow .18s ease}
+.hero-card .btn.gold:hover{transform:translateY(-2px)}
+.mini-stages .mini{transition:transform .18s ease,box-shadow .18s ease;border-radius:16px}
+.mini-stages .mini:hover{transform:translateX(-3px);box-shadow:var(--shadow)}
+.home-ribbon{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 8px}
+.home-ribbon>div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 10px;text-align:center;box-shadow:var(--shadow)}
+.home-ribbon b{display:block;font-size:1.8rem;line-height:1.2;color:var(--brand)}
+.home-ribbon span{font-size:.85rem;color:var(--muted)}
+.home-steps{margin:22px 0}
+.home-steps h2{font-size:1.3rem;margin-bottom:12px;text-align:center}
+.home-steps ol{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.home-steps li{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 14px 14px;display:grid;gap:4px;text-align:center}
+.home-steps .n{width:38px;height:38px;border-radius:50%;margin:-32px auto 4px;display:grid;place-items:center;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand-2));box-shadow:0 6px 14px -6px var(--brand)}
+.home-steps small{color:var(--muted)}
+.home-privacy{margin:8px 0 24px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px}
+.home-privacy summary{cursor:pointer;font-weight:700;display:flex;gap:8px;align-items:center}
+.home-privacy summary svg{width:20px;height:20px}
+.home-privacy ul{margin:10px 0 0;padding-inline-start:20px;display:grid;gap:6px}
+@media (max-width:720px){
+  .home-ribbon{grid-template-columns:repeat(2,1fr)}
+  .home-steps ol{grid-template-columns:1fr;gap:26px}
+}
+@media (prefers-reduced-motion:reduce){.hero-card .btn.gold,.mini-stages .mini{transition:none}}

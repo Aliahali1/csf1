@@ -1,0 +1,34 @@
+/* ============================================================
+   إعدادات النشر — الملف الوحيد الذي تعدّلينه عند الربط.
+   الطريقة المعتمدة: نماذج Google (FORMS). تولّد لوحة المعلمة كتلة FORMS جاهزة للصق.
+   هذا الملف عام: لا تضعي فيه الرقم السري نفسه (توجد بصمته فقط).
+   ============================================================ */
+window.MDQ_CONFIG = {
+  /* ---------- الطريقة المعتمدة: نماذج Google ----------
+     الصقي هنا ما تولّده لوحة المعلمة من تبويب «إعداد نموذج Google» */
+  FORMS: {
+    formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLScMRYvs3DHg38irm22FU-jyCsoV8c0Nt-PiGhSLcnj3PtzHdQ/formResponse',
+    entries: ["entry.1707287725","entry.1113777233","entry.2116431298","entry.1104834666","entry.1497247766","entry.1431488125","entry.1875529206","entry.1804452938","entry.1456715351","entry.617017280","entry.148333964","entry.68863812","entry.1443428257","entry.1088851104","entry.575276631","entry.1621726347","entry.728706235","entry.1563935953","entry.77818469","entry.538807071"],
+    sheetUrl: 'https://docs.google.com/spreadsheets/d/1snSNN-KEcXRuF6MyP-trxIuVemk-g4nTWIrxS8p1apE/edit',
+    pinHash: '0aca4f2114ee972f5ba35a32cd9cd45378eadb44e9dcbbea936ef83b37ae8702',
+    teacherSessionMin: 60
+  },
+  /* ---------- طريقة بديلة متقدمة: خادم Google Apps Script (اختياري) ---------- */
+  BACKEND_URL: '',
+  APP_VERSION: '1.1.0',
+  /* مفاتيح الميزات: false = إيقاف فوري للميزة دون حذف شيء (للتراجع السريع) */
+  FEATURES: { agent: true },
+  TIMEZONE: 'Asia/Riyadh',
+  DEFAULT_SETTINGS: {
+    xpFirst: 10,          // إجابة صحيحة من المحاولة الأولى
+    xpSecond: 6,          // إجابة صحيحة بعد التلميح الأول
+    xpLater: 3,           // إجابة صحيحة بعد تلميحات إضافية
+    masteryThreshold: 80, // نسبة دقة المحاولة الأولى لشارة «نجمة الإتقان»
+    persistenceMin: 2,    // عدد الأسئلة المصححة بعد خطأ لشارة «المثابرة»
+    classField: 'optional', // 'required' | 'optional' | 'hidden'
+    classOptions: [],     // قائمة شعب ثابتة (اختياري). فارغة = حقل نصي حر
+    enabledSuggested: [], // معرفات الأسئلة المقترحة التي اعتمدتها المعلمة
+    disabledFile: [],     // أسئلة من الملفات أوقفتها المعلمة مؤقتًا
+    resources: { cyber: [], device: [], db: [], query: [] } // روابط شرح إضافية [{title,url}]
+  }
+};

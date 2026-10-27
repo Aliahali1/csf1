@@ -15,9 +15,9 @@ window.MDQ_CONFIG = {
   },
   /* ---------- طريقة بديلة متقدمة: خادم Google Apps Script (اختياري) ---------- */
   BACKEND_URL: '',
-  APP_VERSION: '1.1.0',
+  APP_VERSION: '1.2.0',
   /* مفاتيح الميزات: false = إيقاف فوري للميزة دون حذف شيء (للتراجع السريع) */
-  FEATURES: { agent: true },
+  FEATURES: { agent: true, outcomes: true },
   TIMEZONE: 'Asia/Riyadh',
   DEFAULT_SETTINGS: {
     xpFirst: 10,          // إجابة صحيحة من المحاولة الأولى

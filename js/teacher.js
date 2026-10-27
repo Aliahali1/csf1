@@ -102,7 +102,7 @@
     if (!st.data) return gate();
     const model = A.build(st.data.events, st.data.students, st.f);
     const t = MDQ.teacherSession.get();
-    const tabs = [['overview', 'الملخص العام'], ['students', 'متابعة الطالبات'], ['weak', 'جوانب الضعف'], ...((MDQ_CONFIG.FEATURES || {}).agent && MDQ.agent ? [['agent', 'وكيل الرصد']] : []), ['attempts', 'سجل المحاولات'], ['export', 'التصدير والتقارير'], ['bank', 'بنك الأسئلة'], ['settings', 'الإعدادات'], ['connect', MDQ.api.enabled ? 'الربط وGoogle Drive' : 'إعداد نموذج Google']];
+    const tabs = [['overview', 'الملخص العام'], ['students', 'متابعة الطالبات'], ['weak', 'جوانب الضعف'], ...((MDQ_CONFIG.FEATURES || {}).outcomes && MDQ.outcomes ? [['outcomes', 'نواتج التعلم']] : []), ...((MDQ_CONFIG.FEATURES || {}).agent && MDQ.agent ? [['agent', 'وكيل الرصد']] : []), ['attempts', 'سجل المحاولات'], ['export', 'التصدير والتقارير'], ['bank', 'بنك الأسئلة'], ['settings', 'الإعدادات'], ['connect', MDQ.api.enabled ? 'الربط وGoogle Drive' : 'إعداد نموذج Google']];
     root.innerHTML = `
       <div class="t-head">
         <div><p class="eyebrow">لوحة المعلمة</p><h1>متابعة أداء الطالبات</h1>
@@ -116,12 +116,12 @@
       ${st.demo ? `<div class="banner" style="margin-bottom:12px">${MDQ.api.enabled || st.forms ? '<b>معاينة:</b>&nbsp;بيانات تجريبية لأسماء وهمية.' : '<b>يتطلب إكمال إعداد الربط.</b>&nbsp;الموقع غير مربوط بنموذج Google بعد؛ ما يظهر هنا بيانات تجريبية لأسماء وهمية. ابدئي من تبويب «إعداد نموذج Google».'}</div>` : ''}
       <div id="tmsg" role="status">${st.msg ? `<div class="banner info" style="margin-bottom:12px">${esc(st.msg)}</div>` : ''}</div>
       <div class="tabs" role="tablist">${tabs.map(x => `<button role="tab" aria-selected="${st.tab === x[0] && !st.student}" data-tab="${x[0]}">${x[1]}</button>`).join('')}</div>
-      ${['overview', 'students', 'weak', 'attempts', 'export'].includes(st.tab) && !st.student ? filtersHtml() : ''}
+      ${['overview', 'students', 'weak', 'outcomes', 'attempts', 'export'].includes(st.tab) && !st.student ? filtersHtml() : ''}
       <div id="tbody"></div>`;
     st.msg = '';
     const body = $('#tbody');
     if (st.student) studentView(body, model);
-    else ({ overview: overviewView, students: studentsView, weak: weakView, agent: agentView, attempts: attemptsView, export: exportView, bank: bankView, settings: settingsView, connect: connectView }[st.tab])(body, model);
+    else ({ overview: overviewView, students: studentsView, weak: weakView, outcomes: outcomesView, agent: agentView, attempts: attemptsView, export: exportView, bank: bankView, settings: settingsView, connect: connectView }[st.tab])(body, model);
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { st.tab = b.dataset.tab; st.student = null; st.page = 0; render(); });
     $('#refresh').onclick = () => st.forms ? importScreen() : st.demo ? render() : load();
     $('#logout').onclick = () => MDQ.auth.logout();
@@ -258,6 +258,36 @@
     body.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => { st.student = b.dataset.sid; render(); });
   }
 
+
+
+  /* ---------------- نواتج التعلم ومدى تحققها ---------------- */
+  function outcomesView(body, m) {
+    if (!m.students.length) { body.innerHTML = empty(); return; }
+    const rows = MDQ.outcomes.compute(m);
+    const nm = (list, tag) => list.map(w => `<button class="linkish" data-sid="${esc(w.studentId)}">${esc(w.name)}</button>${tag ? ` <small class="muted num">(${w.tries === Infinity ? 'لم تُصب بعد · ' + w.attempts + ' محاولة' : 'أصابت في المحاولة ' + w.tries})</small>` : ''}`).join('، ');
+    const cellPct = (r, j) => r.pct[j] == null ? '—' : `${pill(r.pct[j])}<br><small class="muted num">${r.ok[j]}/${r.n}</small>`;
+    body.innerHTML = `
+      <div class="banner info" style="margin-bottom:14px"><div>كل ناتج تعلم مرتبط بالسؤال الذي يقيسه. <b>نسبة التحقق تراكمية</b>: «الثانية» = من أجابت صحيحًا في المحاولة الأولى أو الثانية، و«الثالثة» = خلال ثلاث محاولات. النسبة محسوبة من الطالبات اللاتي حاولن السؤال فعلًا (العدد تحت النسبة). «أخفقن» = لم تتحقق الإجابة الصحيحة خلال ثلاث محاولات (أو لم يكملن بعد). في أسئلة الصواب والخطأ تكون الثانية غالبًا مرتفعة لأن الخيارات اثنان فقط. المرشحات أعلاه (الفصل، التاريخ) تنطبق على الجدول.</div></div>
+      <div class="row" style="margin-bottom:10px"><button class="btn gold small" id="xOut">${I.download} تنزيل الجدول (CSV)</button></div>
+      ${B.LESSONS.map(l => { const rs = rows.filter(r => r.lesson === l.id); return `
+        <section class="panel card" style="margin-bottom:16px"><h2>${esc(l.stage)} · ${esc(l.lesson)}</h2>
+        <div class="t-scroll" style="max-height:none"><table class="t-table"><thead><tr><th>ناتج التعلم</th><th>السؤال الذي يقيسه</th><th>المحاولة الأولى</th><th>حتى الثانية</th><th>حتى الثالثة</th><th>الطالبات المخفقات</th></tr></thead><tbody>
+        ${rs.map(r => r.missing ? `<tr><td>${esc(r.outcome)}</td><td>${esc(r.question)}</td><td colspan="4" class="muted">لا يوجد سؤال مقابل لهذا الناتج في الموقع حاليًا (موجود في مصفوفة القياس فقط).</td></tr>`
+          : `<tr><td>${esc(r.outcome)}<br><small class="muted">${esc(r.bloom)}</small></td><td>${esc(r.question)}<br><small class="muted ltr">${esc(r.qid)} · ${esc(r.type)}</small></td>
+          <td>${cellPct(r, 0)}</td><td>${cellPct(r, 1)}</td><td>${cellPct(r, 2)}</td>
+          <td>${r.n ? (r.failAll.length ? `<b class="num">${r.failAll.length}</b>: ${nm(r.failAll, true)}` : '<span class="pill ok">لا إخفاق</span>')
+            + (r.failFirst.length ? `<details style="margin-top:4px"><summary class="muted small-print">أخفقن في المحاولة الأولى (${r.failFirst.length})</summary>${nm(r.failFirst)}</details>` : '') : '<span class="muted">لم تحاول أحد</span>'}</td></tr>`).join('')}
+        </tbody></table></div></section>`; }).join('')}`;
+    body.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => { st.student = b.dataset.sid; render(); });
+    $('#xOut').onclick = async () => {
+      const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const lines = [['الدرس', 'ناتج التعلم', 'السؤال', 'عدد من حاولن', 'الأولى %', 'حتى الثانية %', 'حتى الثالثة %', 'المخفقات (بعد 3 محاولات)', 'أخفقن في الأولى'].map(q).join(',')];
+      rows.forEach(r => lines.push([B.lesson(r.lesson).lesson, r.outcome, r.question, r.missing ? '' : r.n, r.pct[0] ?? '', r.pct[1] ?? '', r.pct[2] ?? '',
+        r.missing ? 'لا سؤال مقابل في الموقع' : r.failAll.map(w => w.name).join('، '), r.failFirst.map(w => w.name).join('، ')].map(q).join(',')));
+      const res = await MDQ.saveFile('نواتج_التعلم_ومدى_تحققها.csv', new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+      $('#tmsg').innerHTML = `<div class="banner info" style="margin-bottom:12px">${res === 'declined' ? 'أُلغي حفظ الملف.' : 'جُهّز ملف نواتج التعلم.'}</div>`;
+    };
+  }
 
   /* ---------------- وكيل الرصد (استشاري — للمعلمة فقط) ---------------- */
   function agentView(body, m) {

@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm'), assert = r
 const root = path.join(__dirname, '..');
 const ctx = { window: {}, document: { createElement() { return {}; } }, localStorage: { getItem() { return null; }, setItem() {} }, sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} }, console, navigator: {}, addEventListener() {}, removeEventListener() {}, setInterval() { return 0; }, clearInterval() {}, setTimeout, fetch() {}, URL };
 ctx.window = ctx; ctx.self = ctx; ctx.MDQ = {}; vm.createContext(ctx);
-['js/config.js', 'js/icons.js', 'js/questions.js', 'js/rules.js', 'js/forms.js', 'js/storage.js', 'js/tracker.js', 'js/analytics.js', 'js/agent.js']
+['js/config.js', 'js/icons.js', 'js/questions.js', 'js/rules.js', 'js/forms.js', 'js/storage.js', 'js/tracker.js', 'js/analytics.js', 'js/agent.js', 'js/outcomes.js']
   .forEach(f => { try { vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f }); } catch (e) { console.log('تحذير تحميل', f, e.message.slice(0, 80)); } });
 const M = ctx.MDQ; let n = 0; const ok = (c, m) => { assert(c, m); n++; };
 ok(M.bank && M.bank.QUESTIONS.length === 37, 'عدد الأسئلة 37');
@@ -23,4 +23,10 @@ const res = M.agent.run(model, { duplicates: 0 });
 ok(JSON.stringify(ev) === before, 'الوكيل لا يعدّل الأحداث');
 ok(res.tiers.order.length === 4 && Array.isArray(res.paths), 'مخرجات الوكيل سليمة');
 ok(!/ST-AAAAAA|طالبة اختبار/.test(M.agent.pseudoSummary(model)), 'الملخص مجهَّل الهوية');
+const O = M.outcomes.ROWS;
+ok(O.length === 32, '32 ناتجًا في مصفوفة القياس');
+ok(O.filter(r => r.qid).length === 29 && O.filter(r => !r.qid).length === 3, '29 مرتبطًا و3 بلا سؤال');
+ok(O.filter(r => r.qid).every(r => M.bank.question(r.qid) && M.bank.question(r.qid).lesson === r.lesson), 'كل qid موجود في نفس الدرس');
+const oc = M.outcomes.compute(model); const o1 = oc.find(r => r.qid === M.bank.QUESTIONS.filter(q => q.lesson === 'cyber')[0].id);
+ok(o1.n === 1 && o1.pct[0] === 100 && o1.failAll.length === 0, 'حساب التحقق للمحاولة الأولى');
 console.log(`نجح: ${n} اختبارًا`);

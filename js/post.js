@@ -226,6 +226,11 @@
     goal.post.decisions[rowKey] = studentId; G().update(goal);
     G().logEvent(goal.id, studentId === 'x' ? 'استبعدت المعلمة صفًا' : 'أقرّت المعلمة مطابقة', label || rowKey);
   }
+  /** قرار جماعي: entries = [{key, val}] — يُسجَّل في سطر واحد */
+  function decideMany(goal, entries, label) {
+    entries.forEach(e => { goal.post.decisions[e.key] = e.val; }); G().update(goal);
+    G().logEvent(goal.id, label, entries.length + ' صفًا');
+  }
   function clear(goal) { delete goal.post; G().update(goal); G().logEvent(goal.id, 'حُذف الاختبار البعدي', ''); }
   /** يسجّل النتيجة النهائية بعد اكتمال القرارات */
   function record(goal, model) {
@@ -234,5 +239,5 @@
     return r;
   }
 
-  MDQ.post = { readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, clear, record, SIM_MIN };
+  MDQ.post = { readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
 })();

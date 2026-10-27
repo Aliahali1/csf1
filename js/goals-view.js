@@ -44,12 +44,12 @@
           <div class="panel kpi"><b>${t.pending}</b><small>بانتظار قراركِ</small></div></div>`;
       if (asks.length) {
         h += `<div class="banner bad" style="margin:8px 0"><div><b>توقفتُ وأحتاج قراركِ:</b> الأسماء التالية ليست مطابقة تامة لطالبات الموقع (أو مكررة). لن تدخل في القياس حتى تقرّري.</div></div>
-          <div class="t-scroll" style="max-height:340px"><table class="t-table"><thead><tr><th>الاسم في ملف الاختبار</th><th>الحالة</th><th>القرار</th></tr></thead><tbody>
+          <div class="t-scroll" style="max-height:340px"><div class="row" style="margin:6px 0"><label><input type="checkbox" data-allpend> تحديد الكل</label><button class="btn small" data-act="bulkacc">اقبلي أقرب مرشح للمحددات</button><button class="btn ghost small" data-act="bulkx">استبعدي المحددات</button><span class="muted small-print">حدّدي الطالبات ثم نفّذي الأمر دفعة واحدة، أو اختاري لكل اسم على حدة.</span></div><table class="t-table"><thead><tr><th></th><th>الاسم في ملف الاختبار</th><th>الحالة</th><th>القرار</th></tr></thead><tbody>
           ${asks.map(m => {
             const cs = m.cands.map(c => [c.s.studentId, `${c.s.name} · ${G.normCls(c.s.className)}${c.score < 1 ? ' · تشابه ' + Math.round(c.score * 100) + '٪' : ''}`]);
             const rest = scopeSt.filter(s => !m.cands.some(c => c.s.studentId === s.studentId)).map(s => [s.studentId, `${s.name} · ${G.normCls(s.className)}`]);
             const why = m.multi ? 'صفّان لطالبة واحدة' : stLbl[m.status];
-            return `<tr data-row="${esc(m.row.key)}"><td>${esc(m.name)}</td><td><span class="pill ${m.status === 'similar' ? 'mid' : 'low'}">${esc(why)}</span></td>
+            return `<tr data-row="${esc(m.row.key)}"><td><input type="checkbox" data-pk></td><td>${esc(m.name)}</td><td><span class="pill ${m.status === 'similar' ? 'mid' : 'low'}">${esc(why)}</span></td>
               <td><select class="t-input" data-dec><option value="">— اختاري —</option><option value="x">استبعاد هذه الطالبة</option>${cs.length ? `<optgroup label="مرشحات من الموقع">${optS(cs, m.final ? m.final.studentId : '')}</optgroup>` : ''}<optgroup label="كل طالبات النطاق">${optS(rest, '')}</optgroup></select></td></tr>`;
           }).join('')}</tbody></table></div>`;
       }
@@ -62,8 +62,13 @@
           ${resTable([P.row(g, model)])}
           <p>من ${r.n} طالبة مقارَنة: <b>${r.up}</b> انتقلت من «لم تتحقق» إلى «تحققت»، و<b>${r.down}</b> تراجعت، و<b>${r.stayLow.length}</b> لم تتحقق في الموقع ولا في البعدي.
           ${r.noBase ? ` · ${r.noBase} مقبولة بلا محاولات في الموقع على هذا السؤال (خارج المقارنة).` : ''}${r.noPost ? ` · ${r.noPost} بلا إجابة مفهومة في البعدي.` : ''}</p>
-          ${r.stayLow.length ? `<details><summary class="muted small-print">لم تتحقق في الموقع ولا في البعدي (${r.stayLow.length})</summary>${r.stayLow.map(p => `<button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button>`).join('، ')}</details>` : ''}
-          ${r.down ? `<details><summary class="muted small-print">تراجعت (${r.down})</summary>${r.paired.filter(p => p.base.pass && !p.post).map(p => `<button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button>`).join('، ')}</details>` : ''}
+          <h3 style="margin:10px 0 4px">الطالبات: حدّدي ثم نفّذي أمرًا</h3>
+          <div class="row" style="margin:4px 0"><label>عرض<select class="t-input" data-sfilter><option value="">الكل (${r.paired.length})</option><option value="low">لم تتحقق في البعدي (${r.paired.filter(p => !p.post).length})</option><option value="stay">لم تتحقق في الموقع ولا البعدي (${r.stayLow.length})</option><option value="down">تراجعت (${r.down})</option><option value="up">تحسّنت (${r.up})</option></select></label>
+            <label><input type="checkbox" data-allst> تحديد المعروض</label>
+            <button class="btn small" data-act="stcopy">انسخي أسماء المحددات</button><button class="btn small" data-act="stcsv">${I.download} قائمة المحددات (CSV)</button><button class="btn small" data-act="stprint">اطبعي قائمة دعم للمحددات</button></div>
+          <div class="t-scroll" style="max-height:300px"><table class="t-table"><thead><tr><th></th><th>الطالبة</th><th>الفصل</th><th>الأساس</th><th>البعدي</th><th>التغير</th></tr></thead><tbody>
+          ${r.paired.map(p => { const ch = !p.base.pass && p.post ? 'up' : p.base.pass && !p.post ? 'down' : (!p.base.pass && !p.post ? 'stay' : 'same');
+            return `<tr data-st="${esc(p.s.studentId)}" data-tags="${[!p.post ? 'low' : '', ch].join(' ')}"><td><input type="checkbox" data-sk></td><td><button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button></td><td>${esc(G.normCls(p.s.className))}</td><td>${p.base.pass ? 'تحققت' : 'لم تتحقق'}</td><td>${p.post ? 'تحققت' : 'لم تتحقق'}</td><td><span class="pill ${ch === 'up' ? 'ok' : ch === 'down' || ch === 'stay' ? 'low' : 'na'}">${{ up: 'تحسّنت', down: 'تراجعت', stay: 'لم تتحقق', same: 'ثابتة' }[ch]}</span></td></tr>`; }).join('')}</tbody></table></div>
           <div class="banner info" style="margin:8px 0"><div><b>كيف تُقرأ النتيجة:</b> «الأثر العائد» = (البعدي − الأساس) ÷ (المستهدف − الأساس). أي ما أُغلق من الفجوة التي حدّدتِها (100٪ فأكثر = بلغتِ المستهدف). هذه مقارنة وصفية لنفس الطالبات؛ <b>لا تثبت أن التدخل وحده هو السبب</b> لأنه لا توجد مجموعة ضابطة، ولأن أداة الموقع (محاولات بتلميحات) تختلف عن الاختبار البعدي، وقد تدخل عوامل أخرى (تكرار الشرح، التعوّد على السؤال). تقرأها المعلمة مع ملاحظاتها.</div></div>
           <div class="row"><button class="btn gold small" data-act="postrec">سجّلي النتيجة في سجل الوكيل</button><button class="btn ghost small" data-act="postcsv">${I.download} تنزيل تفاصيل المقارنة (CSV)</button><button class="btn ghost small" data-act="postdel">حذف الاختبار البعدي</button></div>`;
       } else {
@@ -146,8 +151,13 @@
       card.querySelectorAll('[data-ans]').forEach(b => b.onclick = () => { G.answer(goal, b.dataset.ans, b.dataset.k, b.dataset.l); ctx.render(); });
 
       const PM = MDQ.post;
+
+      const checked = sel => [...card.querySelectorAll(sel)].filter(c => c.checked).map(c => c.closest('tr'));
+      const ap = card.querySelector('[data-allpend]'); if (ap) ap.onchange = () => card.querySelectorAll('[data-pk]').forEach(c => c.checked = ap.checked);
+      const as_ = card.querySelector('[data-allst]'); if (as_) as_.onchange = () => card.querySelectorAll('tr[data-st]').forEach(tr => { if (tr.style.display !== 'none') tr.querySelector('[data-sk]').checked = as_.checked; });
+      const sf = card.querySelector('[data-sfilter]'); if (sf) sf.onchange = () => card.querySelectorAll('tr[data-st]').forEach(tr => { const show = !sf.value || tr.dataset.tags.split(' ').includes(sf.value); tr.style.display = show ? '' : 'none'; if (!show) tr.querySelector('[data-sk]').checked = false; });
       const fin = card.querySelector('[data-postfile]');
-      card.querySelectorAll('[data-dec]').forEach(sel => sel.onchange = () => { if (!sel.value) return; const tr = sel.closest('[data-row]'); PM.decide(goal, tr.dataset.row, sel.value, tr.children[0].textContent + ' ← ' + sel.options[sel.selectedIndex].text); ctx.render(); });
+      card.querySelectorAll('[data-dec]').forEach(sel => sel.onchange = () => { if (!sel.value) return; const tr = sel.closest('[data-row]'); PM.decide(goal, tr.dataset.row, sel.value, tr.querySelector('td:nth-child(2)').textContent + ' ← ' + sel.options[sel.selectedIndex].text); ctx.render(); });
       card.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => { const tr = b.closest('[data-row]'); PM.decide(goal, tr.dataset.row, 'x', 'ألغت المعلمة قبول: ' + tr.children[0].textContent); ctx.render(); });
       card.querySelectorAll('[data-pn],[data-pv],[data-pm],[data-pmax],[data-ppass]').forEach(el => el.onchange = () => {
         const p = PEND[goal.id]; if (!p) return;
@@ -157,6 +167,27 @@
       });
       card.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
         const a = b.dataset.act, dg = G.diagnose(model, goal), step = G.planStep(goal, dg);
+        if (a === 'bulkacc' || a === 'bulkx') {
+          const trs = checked('[data-pk]'); if (!trs.length) { ctx.msg('حدّدي طالبة واحدة على الأقل من الجدول.'); return; }
+          const rr = MDQ.post.impact(goal, goal.post, model), ent = []; let skipped = 0;
+          trs.forEach(tr => { const m = rr.ms.find(x => x.row.key === tr.dataset.row); if (!m) return;
+            if (a === 'bulkx') ent.push({ key: m.row.key, val: 'x' });
+            else if (m.status === 'similar' && m.cands.length) ent.push({ key: m.row.key, val: m.cands[0].s.studentId });
+            else skipped++; });
+          if (ent.length) MDQ.post.decideMany(goal, ent, a === 'bulkx' ? 'استبعدت المعلمة مجموعة' : 'أقرّت المعلمة مطابقة مجموعة');
+          if (skipped) ctx.msg(skipped + ' اسم لا مرشح واضحًا له (مكرر أو غير مطابق): اختاري له يدويًا.');
+          ctx.render(); return;
+        }
+        if (a === 'stcopy' || a === 'stcsv' || a === 'stprint') {
+          const sel = checked('[data-sk]').map(tr => ({ name: tr.children[1].textContent.trim(), cls: tr.children[2].textContent.trim(), base: tr.children[3].textContent.trim(), post: tr.children[4].textContent.trim() }));
+          if (!sel.length) { ctx.msg('حدّدي طالبة واحدة على الأقل.'); return; }
+          if (a === 'stcopy') { try { await navigator.clipboard.writeText(sel.map(x => x.name).join('\n')); ctx.msg('نُسخت ' + sel.length + ' أسماء.'); } catch (e) { prompt('انسخي الأسماء:', sel.map(x => x.name).join('\n')); } }
+          else if (a === 'stcsv') { const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+            await MDQ.saveFile('قائمة_طالبات_محددات.csv', new Blob(['﻿' + [['الطالبة', 'الفصل', 'الأساس', 'البعدي'].map(q).join(',')].concat(sel.map(x => [x.name, x.cls, x.base, x.post].map(q).join(','))).join('\r\n')], { type: 'text/csv;charset=utf-8' })); }
+          else { const html = '<html dir="rtl"><head><meta charset="utf-8"></head><body style="font-family:Times New Roman;font-size:14pt"><h2>قائمة دعم — ' + esc(goal.outcome) + '</h2><table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>الطالبة</th><th>الفصل</th><th>ملاحظات</th></tr>' + sel.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.cls) + '</td><td></td></tr>').join('') + '</table></body></html>';
+            await MDQ.saveFile('قائمة_دعم.doc', new Blob(['﻿' + html], { type: 'application/msword' })); }
+          MDQ.goals.logEvent(goal.id, 'أمر على طالبات محددات', ({ stcopy: 'نسخ', stcsv: 'تنزيل CSV', stprint: 'قائمة دعم' })[a] + ' · ' + sel.length + ' طالبة'); return;
+        }
         if (a === 'postload') {
           const f = fin && fin.files[0]; if (!f) { ctx.msg('اختاري ملف Excel أو CSV أولًا.'); return; }
           try { const sh = MDQ.post.shape(await MDQ.post.readFile(f)); PEND[goal.id] = { file: f.name, shape: sh }; ctx.render(); } catch (e) { ctx.msg(e.message || 'تعذّرت قراءة الملف.'); }

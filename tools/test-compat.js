@@ -29,4 +29,5 @@ ok(O.filter(r => r.qid).length === 29 && O.filter(r => !r.qid).length === 3, '29
 ok(O.filter(r => r.qid).every(r => M.bank.question(r.qid) && M.bank.question(r.qid).lesson === r.lesson), 'كل qid موجود في نفس الدرس');
 const oc = M.outcomes.compute(model); const o1 = oc.find(r => r.qid === M.bank.QUESTIONS.filter(q => q.lesson === 'cyber')[0].id);
 ok(o1.n === 1 && o1.pct[0] === 100 && o1.failAll.length === 0, 'حساب التحقق للمحاولة الأولى');
+ok(typeof M.agent.auditCsv === 'function' && M.agent.decide.length >= 4, 'سجل القرارات يحفظ لقطة');
 console.log(`نجح: ${n} اختبارًا`);

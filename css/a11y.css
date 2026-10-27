@@ -1,0 +1,24 @@
+/* خط الموقع: Times New Roman + أدوات إمكانية الوصول */
+:root { --f-display: "Times New Roman", Times, serif; --f-body: "Times New Roman", Times, serif; --a11y-scale: 1; }
+html { font-size: calc(16px * var(--a11y-scale)); }
+body { font-family: "Times New Roman", Times, serif; font-size: calc(18px * var(--a11y-scale)); }
+button, input, select, textarea, summary, table, .btn { font-family: "Times New Roman", Times, serif; }
+html[data-spacing="wide"] body { line-height: 2.05; letter-spacing: .02em; word-spacing: .12em; }
+html[data-contrast="high"] { --ink: #000; --muted: #222; --line: #000; --surface: #fff; --surface-2: #f2f2f2; }
+html[data-contrast="high"] body { background: #fff; color: #000; }
+html[data-contrast="high"] a, html[data-contrast="high"] .linkish { color: #0000c8; text-decoration: underline; }
+html[data-contrast="high"] .btn, html[data-contrast="high"] .panel, html[data-contrast="high"] input, html[data-contrast="high"] select { border: 2px solid #000 !important; }
+html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { animation: none !important; transition: none !important; }
+*:focus-visible { outline: 3px solid #1a56db; outline-offset: 2px; }
+
+.a11y-fab { position: fixed; inset-inline-start: 14px; bottom: 14px; z-index: 9999; width: 52px; height: 52px; border-radius: 50%; border: 2px solid #fff; background: #1a3d8f; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.35); display: grid; place-items: center; }
+.a11y-panel { position: fixed; inset-inline-start: 14px; bottom: 76px; z-index: 9999; width: min(320px, calc(100vw - 28px)); background: #fff; color: #111; border: 2px solid #1a3d8f; border-radius: 16px; padding: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 16px; line-height: 1.6; direction: rtl; }
+.a11y-panel[hidden] { display: none; }
+.a11y-panel h2 { font-size: 1.1rem; margin: 0 0 8px; color: #1a3d8f; }
+.a11y-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.a11y-row > span { flex: 1 1 100%; font-weight: 700; font-size: .92rem; }
+.a11y-panel button.ab { flex: 1; min-width: 0; padding: 8px 6px; border-radius: 10px; border: 2px solid #1a3d8f; background: #eef3ff; color: #1a3d8f; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.a11y-panel button.ab[aria-pressed="true"] { background: #1a3d8f; color: #fff; }
+.a11y-panel button.ab:disabled { opacity: .45; cursor: not-allowed; }
+.a11y-val { min-width: 54px; text-align: center; font-weight: 700; }
+.a11y-note { font-size: .8rem; color: #444; margin: 6px 0 0; }

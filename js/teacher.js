@@ -102,7 +102,7 @@
     if (!st.data) return gate();
     const model = A.build(st.data.events, st.data.students, st.f);
     const t = MDQ.teacherSession.get();
-    const tabs = [['overview', 'الملخص العام'], ['students', 'متابعة الطالبات'], ['weak', 'جوانب الضعف'], ...((MDQ_CONFIG.FEATURES || {}).outcomes && MDQ.outcomes ? [['outcomes', 'نواتج التعلم']] : []), ...((MDQ_CONFIG.FEATURES || {}).agent && MDQ.agent ? [['agent', 'وكيل الرصد']] : []), ['attempts', 'سجل المحاولات'], ['export', 'التصدير والتقارير'], ['bank', 'بنك الأسئلة'], ['settings', 'الإعدادات'], ['connect', MDQ.api.enabled ? 'الربط وGoogle Drive' : 'إعداد نموذج Google']];
+    const tabs = [['overview', 'الملخص العام'], ['students', 'متابعة الطالبات'], ['weak', 'جوانب الضعف'], ...((MDQ_CONFIG.FEATURES || {}).outcomes && MDQ.outcomes ? [['outcomes', 'نواتج التعلم']] : []), ...((MDQ_CONFIG.FEATURES || {}).agent && MDQ.agent ? [['agent', 'أداة الرصد']] : []), ['attempts', 'سجل المحاولات'], ['export', 'التصدير والتقارير'], ['bank', 'بنك الأسئلة'], ['settings', 'الإعدادات'], ['connect', MDQ.api.enabled ? 'الربط وGoogle Drive' : 'إعداد نموذج Google']];
     root.innerHTML = `
       <div class="t-head">
         <div><p class="eyebrow">لوحة المعلمة</p><h1>متابعة أداء الطالبات</h1>
@@ -289,13 +289,14 @@
     };
   }
 
-  /* ---------------- وكيل الرصد (استشاري — للمعلمة فقط) ---------------- */
+  /* ---------------- أداة الرصد (استشارية — للمعلمة فقط) ---------------- */
   function agentView(body, m) {
     if (!m.students.length) { body.innerHTML = empty(); return; }
     const R = MDQ.agent.run(m, st.data), Ag = MDQ.agent;
     const tierCls = { 'متميزة': 'ok', 'متقدمة': 'ok', 'في الطريق': 'mid', 'تحتاج دعمًا': 'low' };
     body.innerHTML = `
-      <div class="banner info" style="margin-bottom:14px">وكيل استشاري: يحلّل ويقترح فقط. لا يعدّل الأسئلة ولا المحتوى ولا بيانات الطالبات، ولا يرسل شيئًا خارج هذا المتصفح. كل مقترح مسار يحتاج اعتمادك، ويُسجَّل قرارك. الفئات وصفية وليست درجات رسمية.</div>
+      <div class="banner info" style="margin-bottom:14px">أداة رصد استشارية بقواعد ثابتة (ليست وكيل ذكاء اصطناعي بتعريف المركز الوطني): تحلّل وتقترح فقط. لا يعدّل الأسئلة ولا المحتوى ولا بيانات الطالبات، ولا يرسل شيئًا خارج هذا المتصفح. كل مقترح مسار يحتاج اعتمادك، ويُسجَّل قرارك. الفئات وصفية وليست درجات رسمية. <b>تنبيه صلاحية:</b> الأجهزة مشتركة بين المجموعات في الفصل، فقد تعكس إجابات الطالبة المسجَّلة عمل مجموعتها لا أداءها وحدها؛ فاقرئي «الأوائل» والفئات بحذر قبل أي قرار فردي.</div>
+      ${govCard()}
       <section class="panel card"><h2>فحص جودة البيانات</h2>
         ${R.quality.issues.length ? `<ul>${R.quality.issues.map(i => `<li><span class="pill ${i.lvl === 'warn' ? 'mid' : 'na'}">${i.lvl === 'warn' ? 'انتبهي' : 'معلومة'}</span> ${esc(i.t)}</li>`).join('')}</ul>` : '<p>لا ملاحظات على جودة البيانات.</p>'}
         <p class="muted small-print">هذا الفحص لا يحذف شيئًا؛ يعرض ما يستحق مراجعتك قبل تفسير النتائج.</p></section>
@@ -312,21 +313,51 @@
         ${R.items.map(i => `<tr><td>${esc(i.def ? i.def.no : i.qid)}</td><td>${esc(i.concept)}</td><td class="num">${i.n}</td><td>${pill(i.firstPct)}</td><td class="num">${i.avgWrong}</td><td>${esc(i.flag)}</td></tr>`).join('')}</tbody></table></div>
         <p class="muted small-print">لا يُعدَّل أي سؤال تلقائيًا؛ الملاحظات لتقرري أنتِ.</p></section>
       <section class="panel card" style="margin-top:16px"><h2>مسارات تعلم مقترحة (بانتظار اعتمادك)</h2>
-        <p class="muted small-print">مبنية من محتوى الدروس القائم ونواتجه فقط. «اعتماد» يسجّل قرارك محليًا ولا يرسل شيئًا للطالبة.</p>
+        <p class="muted small-print">مبنية من محتوى الدروس القائم ونواتجه فقط. «اعتماد» علامة متابعة خاصة بكِ تُسجَّل في هذا المتصفح (مع لقطة المسار والفئة وقتها) ولا يصل منها شيء للطالبة. يمكنكِ تنزيل السجل بملف CSV لحفظه.</p>
         ${(() => { const card = p => { const d = MDQ.agent.decisionOf(p.studentId); return `<div class="wq" data-p="${esc(p.studentId)}"><b>${esc(p.name)}</b> <small class="muted">${esc(p.className || '')}</small>
           <ol style="margin:6px 0">${p.steps.map(x => `<li><span class="pill na">${x.kind}</span> ${esc(x.text)}</li>`).join('')}</ol>
-          <span class="row"><button class="btn small" data-dec="approved">اعتماد</button><button class="btn ghost small" data-dec="rejected">رفض</button>
+          <span class="row"><input class="t-input" data-note placeholder="ملاحظتكِ (اختياري)" style="max-width:260px" value="${esc(d ? d.note : '')}"><button class="btn small" data-dec="approved">اعتماد</button><button class="btn ghost small" data-dec="rejected">رفض</button>
           <small class="muted">${d ? 'القرار: ' + (d.decision === 'approved' ? 'معتمد' : 'مرفوض') + ' · ' + esc(T(d.at)) : 'لم يُقرَّر بعد'}</small></span></div>`; };
           const rem = R.paths.filter(p => p.steps.some(x => x.kind === 'علاج')), oth = R.paths.filter(p => !p.steps.some(x => x.kind === 'علاج'));
           return `<details open><summary><b>تحتاج علاجًا (${rem.length})</b></summary>${rem.map(card).join('') || '<p class="muted">لا يوجد.</p>'}</details>
             <details><summary><b>إكمال / تقدّم / إثراء (${oth.length})</b></summary>${oth.map(card).join('') || '<p class="muted">لا يوجد.</p>'}</details>`; })()}
         </section>
+      <section class="panel card" style="margin-top:16px"><h2>سجل قراراتكِ (${MDQ.agent.audit().length})</h2>
+        <p class="muted small-print">محفوظ في هذا المتصفح فقط؛ نزّليه للاحتفاظ به. مسحُ بيانات المتصفح يحذفه.</p>
+        <div class="t-scroll" style="max-height:260px"><table class="t-table"><thead><tr><th>الوقت</th><th>الطالبة</th><th>القرار</th><th>ملاحظة</th><th>الفئة وقتها</th></tr></thead><tbody>
+        ${MDQ.agent.audit().slice(-50).reverse().map(x => `<tr><td class="num">${esc(T(x.at))}</td><td>${esc(nameOf(x.studentId))}</td><td>${x.decision === 'approved' ? 'معتمد' : 'مرفوض'}</td><td>${esc(x.note || '')}</td><td>${esc(x.snap ? x.snap.tier : '')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">لا قرارات بعد.</td></tr>'}</tbody></table></div>
+        <div class="row" style="margin-top:8px"><button class="btn gold small" id="xAudit">${I.download} تنزيل السجل (CSV)</button></div></section>
       <section class="panel card" style="margin-top:16px"><h2>ملخص مجهَّل الهوية للذكاء الاصطناعي (اختياري)</h2>
         <p class="muted small-print">بلا أسماء ولا رموز. انسخيه إن رغبتِ بتحليل إضافي بأداة خارجية؛ لا تلصقي فيها أسماء الطالبات.</p>
         <textarea class="t-input" id="agSum" rows="7" readonly style="width:100%">${esc(MDQ.agent.pseudoSummary(m))}</textarea></section>`;
     body.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => { st.student = b.dataset.sid; render(); });
-    body.querySelectorAll('[data-p] [data-dec]').forEach(b => b.onclick = () => { MDQ.agent.decide(b.closest('[data-p]').dataset.p, b.dataset.dec); render(); });
+    body.querySelectorAll('[data-p] [data-dec]').forEach(b => b.onclick = () => {
+      const card = b.closest('[data-p]'), id = card.dataset.p, p = R.paths.find(x => x.studentId === id);
+      const tr = [].concat(...R.tiers.order.map(o => R.tiers.groups[o].map(r => ({ id: r.s.studentId, tier: o, score: r.score })))).find(x => x.id === id) || {};
+      MDQ.agent.decide(id, b.dataset.dec, (card.querySelector('[data-note]') || {}).value || '', { tier: tr.tier || '', score: tr.score == null ? '' : tr.score, steps: p ? p.steps.map(x => x.kind + ': ' + x.text) : [], source: (st.data && st.data.fileName) || '' });
+      render();
+    });
+    $('#xAudit').onclick = async () => {
+      const res = await MDQ.saveFile('سجل_قرارات_أداة_الرصد.csv', new Blob([MDQ.agent.auditCsv(nameOf)], { type: 'text/csv;charset=utf-8' }));
+      $('#tmsg').innerHTML = `<div class="banner info" style="margin-bottom:12px">${res === 'declined' ? 'أُلغي حفظ الملف.' : 'جُهّز ملف سجل القرارات.'}</div>`;
+    };
   }
+  function govCard() {
+    const g = (window.MDQ_CONFIG || {}).GOVERNANCE || {};
+    const val = v => v ? esc(v) : '<span class="pill mid">لم تُحدَّد بعد — يُكمَل في js/config.js</span>';
+    return `<section class="panel card" style="margin-bottom:16px"><h2>بطاقة التصنيف والحوكمة</h2>
+      <div class="t-scroll" style="max-height:none"><table class="t-table"><tbody>
+      <tr><th>التصنيف</th><td>${val(g.classification)}</td></tr>
+      <tr><th>الغرض</th><td>مساعدة المعلمة على رصد التعثر والتميّز وتخطيط الدعم؛ لا تُستخدم للدرجات الرسمية ولا للجزاءات ولا لقرارات القبول.</td></tr>
+      <tr><th>المسؤول</th><td>${val(g.owner)}</td></tr>
+      <tr><th>البيانات المستخدمة</th><td>ردود نموذج Google التي تستوردينها (اسم، فصل، رمز، إجابات، أوقات). لا تُرسل خارج هذا المتصفح.</td></tr>
+      <tr><th>حدود الأداة</th><td>قواعد ثابتة ومعادلة معلنة؛ تتأثر بالتسجيل المكرر وبالأجهزة المشتركة؛ لم يُقَس أثرها على التعلم بعد.</td></tr>
+      <tr><th>التصحيح والإيقاف</th><td>القرار لكِ دائمًا. تُوقف الأداة بتغيير <span class="ltr">FEATURES.agent</span> إلى <span class="ltr">false</span>. طلبات الطالبات/أولياء الأمور للتصحيح أو الحذف تصل إليكِ مباشرة.</td></tr>
+      <tr><th>مدة الاحتفاظ بالبيانات</th><td>${val(g.retention)}</td></tr>
+      <tr><th>إشعار أولياء الأمور</th><td>${val(g.guardianNotice)}</td></tr>
+      </tbody></table></div></section>`;
+  }
+  function nameOf(id) { const s = (st.data && st.data.events || []).find(e => e.studentId === id && e.studentName); return s ? s.studentName : id; }
 
   /* ---------------- سجل المحاولات ---------------- */
   function attemptsView(body, m) {

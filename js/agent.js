@@ -1,5 +1,5 @@
 /* ============================================================
-   وكيل الرصد التعليمي (للمعلمة فقط) — مستوى الاستقلالية 1: يحلّل ويقترح ولا ينفّذ.
+   أداة الرصد التعليمي (للمعلمة فقط) — سير عمل مؤتمت بقواعد ثابتة وليست وكيل ذكاء اصطناعي — مستوى الاستقلالية 1: يحلّل ويقترح ولا ينفّذ.
    - لا يعدّل أسئلة ولا محتوى ولا بيانات. لا يرسل شيئًا خارج المتصفح.
    - كل مقترح مسار يحتاج اعتماد المعلمة، ويُسجَّل القرار في سجل تدقيق محلي.
    - الفئات وصفية (ليست ترتيبًا رسميًا ولا درجات)؛ التعادل شائع فلا نُرقّم المراكز.
@@ -90,10 +90,18 @@
 
   /* ---------- سجل التدقيق والاعتماد (محلي في متصفح المعلمة) ---------- */
   function audit() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-  function decide(studentId, decision, note) {
-    const a = audit(); a.push({ at: new Date().toISOString(), studentId, decision, note: note || '', v: VERSION });
+  function decide(studentId, decision, note, snap) {
+    const a = audit(); a.push({ at: new Date().toISOString(), studentId, decision, note: note || '', v: VERSION, app: (window.MDQ_CONFIG || {}).APP_VERSION || '', snap: snap || null });
     try { localStorage.setItem(KEY, JSON.stringify(a.slice(-500))); } catch (e) {}
     return a;
+  }
+  /** ملف CSV لسجل القرارات (يحفظ لقطة المسار والفئة وقت القرار وإصدار الأداة) */
+  function auditCsv(nameOf) {
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const rows = [['وقت القرار', 'الطالبة', 'القرار', 'ملاحظة المعلمة', 'الفئة وقتها', 'الدرجة المركبة', 'خطوات المسار وقتها', 'ملف البيانات', 'إصدار الأداة']];
+    audit().slice().reverse().forEach(x => rows.push([x.at, nameOf(x.studentId), x.decision === 'approved' ? 'معتمد' : 'مرفوض', x.note || '',
+      x.snap ? x.snap.tier : '', x.snap ? x.snap.score : '', x.snap ? (x.snap.steps || []).join(' | ') : '', x.snap ? x.snap.source : '', x.app || x.v]));
+    return '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n');
   }
   function decisionOf(studentId) { const a = audit().filter(x => x.studentId === studentId); return a.length ? a[a.length - 1] : null; }
 
@@ -109,5 +117,5 @@
   }
 
   function run(m, data) { return { version: VERSION, quality: quality(m, data), tiers: tiers(m), items: items(m), funnel: funnel(m), paths: paths(m) }; }
-  MDQ.agent = { VERSION, run, tiers, quality, items, funnel, paths, decide, decisionOf, audit, pseudoSummary, score };
+  MDQ.agent = { VERSION, run, tiers, quality, items, funnel, paths, decide, decisionOf, audit, auditCsv, pseudoSummary, score };
 })();

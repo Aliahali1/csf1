@@ -156,8 +156,9 @@
       add('group', o.h, o.e);
     }
     // ---- أثر إجابات المعلمة ----
-    if (ans.devices === 'no') res.causes = res.causes.filter(c => c.key !== 'group');
-    if (ans.devices === 'yes' && p1 < 0.8) {
+    const dev = ans.devices || 'no'; // لكل طالبة جهازها في المركز (إفادة المعلمة): لا يُفترض عمل مجموعة ما لم تُجب بغير ذلك
+    if (dev === 'no') res.causes = res.causes.filter(c => c.key !== 'group');
+    if (dev === 'yes' && p1 < 0.8) {
       const g = res.causes.find(c => c.key === 'group');
       if (g) { g.hits++; g.ev.push('أفدتِ أن الطالبات يعملن بجهاز مشترك'); } else res.causes.push({ key: 'group', label: CAUSES.group, hits: 1, ev: ['أفدتِ أن الطالبات يعملن بجهاز مشترك (لا مؤشر زمني مباشر)'] });
     }
@@ -168,9 +169,6 @@
     if (!ans.tie && res.causes.length > 1 && res.causes[0].hits === res.causes[1].hits)
       res.clarify.push({ id: 'tie', blocking: true, text: 'احتمالان متساويان في قوة الدليل. أيّهما أقرب لما تلاحظينه في الفصل؟',
         options: [res.causes[0], res.causes[1]].map(c => ({ k: c.key, label: c.label })) });
-    if (ans.devices == null && (p1 < 0.8)) res.clarify.push({ id: 'devices', blocking: false,
-      text: 'هل تعمل طالبات هذا الفصل بجهاز واحد لكل مجموعة؟ (لا يمكنني كشف ذلك من البيانات، وهو يغيّر تفسير الإجابات الفردية)',
-      options: [{ k: 'yes', label: 'نعم' }, { k: 'no', label: 'لا، لكل طالبة جهاز' }, { k: 'mixed', label: 'مختلط' }] });
     res.failing = st.filter(x => x.tries > (goal.metric === 'first' ? 1 : 3)).map(x => ({ id: x.s.studentId, name: x.s.name }));
     return res;
   }

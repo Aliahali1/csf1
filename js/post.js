@@ -247,6 +247,9 @@
             ← الأساس (محاولة أولى في الموقع) ← المتحقق (نقطة السؤال) ← الأثر ← التوصيات
      تُحلَّل فقط النواتج التي لها سؤال في الاختبار البعدي؛ ما عداها خارج التحليل.
      ============================================================ */
+  /* الأسئلة الـ24 في نموذج الاختبار البعدي (تُستبدل بما في الملف المرفوع إن وُجد) */
+  const POST_QIDS = ['db-01', 'db-03', 'db-04', 'db-05', 'db-06', 'db-07', 'db-08', 'qr-01', 'qr-02', 'qr-03', 'qr-04', 'qr-06', 'qr-07', 'qr-08', 'dv-01', 'dv-02', 'dv-05', 'dv-06', 'cy-01', 'cy-05', 'cy-06', 'cy-07', 'cy-08', 'dv-04'];
+  const postQids = () => { const st = getSet(); return st && st.items && st.items.length ? st.items.map(i => i.qid) : POST_QIDS; };
   const SK = 'mdq.agent.postset.v1', CEIL = 85;
   const getSet = () => { try { return JSON.parse(localStorage.getItem(SK) || 'null'); } catch (e) { return null; } };
   const putSet = v => { try { localStorage.setItem(SK, JSON.stringify(v)); } catch (e) {} };
@@ -335,5 +338,5 @@
   const setTarget = t => { const s = getSet(); s.target = t; putSet(s); };
   const setClear = () => { try { localStorage.removeItem(SK); } catch (e) {} G().logEvent('post', 'حُذف ملف الاختبار البعدي', ''); };
 
-  MDQ.post = { ingest, analyze, getSet, putSet, setDecide, setTarget, setClear, CEIL, readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
+  MDQ.post = { postQids, POST_QIDS, ingest, analyze, getSet, putSet, setDecide, setTarget, setClear, CEIL, readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
 })();

@@ -3,7 +3,7 @@
   const G = MDQ.goals;
   function view(body, ctx) {
     const { esc, pill, T, I, B, model } = ctx;
-    const goals = G.list(), outcomes = MDQ.outcomes.ROWS.filter(r => r.qid), classes = G.classes(model);
+    const PQ = MDQ.post.postQids(), goals = G.list().filter(x => PQ.includes(x.qid)), outcomes = MDQ.outcomes.ROWS.filter(r => r.qid && PQ.includes(r.qid)), classes = G.classes(model);
     const lessonName = id => (B.lesson(id) || {}).lesson || id;
     const statusCls = s => ({ 'تحقق الهدف': 'ok', 'تحسّن': 'ok', 'لم يتحسن': 'low', 'بيانات قليلة': 'mid' }[s] || 'na');
 
@@ -39,8 +39,9 @@
             return `<tr data-xr="${esc(m.row.key)}"><td><input type="checkbox" data-xk></td><td>${esc(m.name)}</td><td><span class="pill ${m.status === 'similar' ? 'mid' : 'low'}">${esc(m.multi ? 'صفّان لطالبة واحدة' : stLbl[m.status])}</span></td>
               <td><select class="t-input" data-xd><option value="">— اختاري —</option><option value="x">استبعاد</option>${cs.length ? `<optgroup label="مرشحات">${optS(cs, '')}</optgroup>` : ''}<optgroup label="كل الطالبات">${optS(rest, '')}</optgroup></select></td></tr>`; }).join('')}</tbody></table></div>`;
       }
-      const R = A.rows;
-      h += `<h3 style="margin:12px 0 4px">نتائج الأثر لكل ناتج (${R.length} ناتجًا مذكورًا في الاختبار البعدي · ${A.accepted} طالبة مقبولة)</h3>
+      const view = MDQ.post._view || (goals.length ? 'goals' : 'all'), R = view === 'goals' ? A.rows.filter(x => x.targeted) : A.rows;
+      h += `<div class="row" style="margin:12px 0 4px"><h3 class="grow" style="margin:0">نتائج الأثر (${R.length} ناتجًا · ${A.accepted} طالبة مقبولة)</h3><label>عرض<select id="pView" class="t-input"><option value="goals" ${view === 'goals' ? 'selected' : ''}>أهدافي المحددة (${A.rows.filter(x => x.targeted).length})</option><option value="all" ${view === 'all' ? 'selected' : ''}>كل نواتج الاختبار (${A.rows.length})</option></select></label></div>
+        ${view === 'goals' && !R.length ? '<p class="muted">لم تحدّدي أهدافًا بعد؛ حدّديها من «هدف جديد» أعلاه أو اعرضي كل النواتج.</p>' : ''}
         <div style="overflow-x:auto"><table class="t-table"><thead><tr><th>الهدف (ناتج التعلم)</th><th>الأساس</th><th>المتحقق</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th></tr></thead><tbody>
         ${Object.keys(lessonOrder).map(l => { const rs = R.filter(x => x.lesson === l); if (!rs.length) return ''; return `<tr><td colspan="6" style="background:var(--surface-2,#f7eef6)"><b>${esc(lessonOrder[l])}</b></td></tr>` + rs.map(x =>
           `<tr><td>${esc(x.outcome)}${x.targeted ? ' <span class="pill ok">له هدف</span>' : ''}<br><span class="pill ${x.status === 'تحقق الهدف' || x.status === 'تحسّن' ? 'ok' : x.status === 'لم يتحسن' ? 'low' : 'mid'}">${esc(x.status)}</span></td>
@@ -160,7 +161,7 @@
               <label><input type="checkbox" data-chk> تقيس ناتج التعلم نفسه وبالمستوى نفسه</label><br>
               <label><input type="checkbox" data-chk> سليمة لغويًا ومناسبة للصف الثالث المتوسط</label></div>
               <button class="btn small" data-act="approve">اعتماد</button>`}</div>`).join('')}` : ''}
-        ${g.paused ? '' : postSection(g)}
+        ${g.paused ? '' : (g.post ? postSection(g) : '<p class="muted small-print">قياس الأثر بعد الاختبار البعدي: من قسم «تحليل الاختبار البعدي» في أعلى الصفحة (يقيس كل الأهداف معًا).</p>')}
         <div class="row" style="margin-top:10px"><button class="btn ghost small" data-act="pause">${g.paused ? 'استئناف الوكيل' : 'إيقاف الوكيل لهذا الهدف'}</button><button class="btn ghost small" data-act="del">حذف الهدف</button></div>
       </section>`;
     };
@@ -169,17 +170,19 @@
       <div class="banner info" style="margin-bottom:14px"><div><b>تفويض الوكيل (استقلالية 1).</b> يقرأ ردود الطالبات التي استوردتِها، ويحلّل ويشخّص ويقترح ويسأل. <b>لا</b> يرسل شيئًا للطالبات أو لأي خدمة خارجية، ولا يعدّل الأسئلة أو الدروس أو البيانات، ولا يقرر درجات. كل مادة دعم مسودة حتى تعتمديها. يُخزَّن عمله في هذا المتصفح فقط. محرّكه قواعد ثابتة معلنة وعتباتها إرشادية غير مُعايَرة.</div></div>
       <section class="panel card" style="margin-bottom:16px"><h2>هدف جديد</h2>
         <div class="filters" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
-          <label style="flex:2;min-width:260px">ناتج التعلم<select id="gOut" class="t-input">${['db', 'query', 'device', 'cyber'].map(l => `<optgroup label="${esc(lessonName(l))}">${outcomes.filter(o => o.lesson === l).map(o => `<option value="${esc(o.qid)}">${esc(o.outcome.slice(0, 90))}</option>`).join('')}</optgroup>`).join('')}</select></label>
+          <div style="flex:1 1 100%"><b>نواتج التعلم المرتبطة بالاختبار البعدي (${outcomes.length})</b>
+            <label style="margin-inline-start:14px"><input type="checkbox" id="gAll"> تحديد كل الأهداف</label>
+            ${['db', 'query', 'device', 'cyber'].map(l => { const os = outcomes.filter(o => o.lesson === l); return os.length ? `<details open style="margin:4px 0"><summary class="muted small-print">${esc(lessonName(l))} (${os.length})</summary>${os.map(o => `<label style="display:block;margin:2px 0"><input type="checkbox" data-go value="${esc(o.qid)}" ${goals.some(x => x.qid === o.qid) ? 'disabled checked' : ''}> ${esc(o.outcome.slice(0, 110))}${goals.some(x => x.qid === o.qid) ? ' <span class="pill ok">له هدف</span>' : ''}</label>`).join('')}</details>` : ''; }).join('')}</div>
           <label>الفصل<select id="gCls" class="t-input"><option value="">كل الفصول</option>${classes.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>
           <label>المقياس<select id="gMet" class="t-input"><option value="first">التحقق من الأولى</option><option value="by3">التحقق حتى الثالثة</option></select></label>
           <label>المستهدف ٪<input id="gTar" type="number" min="1" max="100" value="80" class="t-input" style="width:80px"></label>
           <label>الموعد<input id="gDue" type="date" class="t-input"></label>
           <label style="flex:1;min-width:160px">ملاحظة<input id="gNote" class="t-input" placeholder="اختياري"></label>
-          <button class="btn gold" id="gGo">ابدئي الهدف</button></div>
+          <button class="btn gold" id="gGo">ابدئي الأهداف المحددة</button></div>
         <p class="muted small-print">يحسب الوكيل خط الأساس الآن من بياناتكِ، ثم يشخّص ويقترح. بعد تنفيذ الخطوة وإعادة استيراد الردود اضغطي «راجعي» ليقيّم الأثر ويعدّل مساره.</p></section>
       ${postAuto()}
       ${goals.some(x => x.post) ? `<section class="panel card" style="margin-bottom:16px"><h2>ملخص أثر الأهداف (بعد الاختبار البعدي)</h2>${resTable(goals.filter(x => x.post).map(x => MDQ.post.row(x, model)))}<div class="row" style="margin-top:8px"><button class="btn gold small" id="gSum">${I.download} تنزيل الجدول (CSV)</button></div></section>` : ''}
-      ${goals.length ? goals.map(goalCard).join('') : '<div class="panel" style="padding:20px"><p class="muted">لا أهداف بعد. حدّدي هدفًا ليبدأ الوكيل.</p></div>'}
+      ${goals.length ? goals.map(x => `<details style="margin-bottom:12px" ${goals.length <= 3 ? 'open' : ''}><summary class="panel card" style="cursor:pointer;padding:12px"><b>${esc(x.outcome.slice(0, 100))}</b> <span class="pill ${statusCls(G.evaluate(x, model).status)}">${esc(x.paused ? 'متوقف' : G.evaluate(x, model).status)}</span></summary>${goalCard(x)}</details>`).join('') : '<div class="panel" style="padding:20px"><p class="muted">لا أهداف بعد. حدّدي هدفًا ليبدأ الوكيل.</p></div>'}
       <section class="panel card"><h2>سجل عمل الوكيل (${G.log().length})</h2>
         <div class="t-scroll" style="max-height:240px"><table class="t-table"><thead><tr><th>الوقت</th><th>الحدث</th><th>التفصيل</th></tr></thead><tbody>
         ${G.log().slice(-60).reverse().map(x => `<tr><td class="num">${esc(T(x.at))}</td><td>${esc(x.event)}</td><td>${esc(x.detail)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">لا أحداث.</td></tr>'}</tbody></table></div>
@@ -197,6 +200,7 @@
         try { P.ingest(await P.readFile(f), f.name); ctx.render(); } catch (e) { ctx.msg(e.message || 'تعذّرت قراءة الملف.'); }
       };
       if (!set) return;
+      const pv = root.querySelector('#pView'); if (pv) pv.onchange = () => { MDQ.post._view = pv.value; ctx.render(); };
       root.querySelector('#pTarGo').onclick = () => { const v = +root.querySelector('#pTar').value; if (v >= 1 && v <= 100) { P.setTarget(v); ctx.render(); } };
       const pa = root.querySelector('#pAll'); if (pa) pa.onchange = () => root.querySelectorAll('[data-xk]').forEach(c => c.checked = pa.checked);
       root.querySelectorAll('[data-xd]').forEach(sel => sel.onchange = () => { if (sel.value) { P.setDecide([{ key: sel.closest('tr').dataset.xr, val: sel.value }], sel.value === 'x' ? 'استبعدت المعلمة صفًا' : 'أقرّت المعلمة مطابقة'); ctx.render(); } });
@@ -222,18 +226,20 @@
           G.logEvent('post', 'أمر على طالبات محددات', a + ' · ' + sel.length + ' طالبة'); return;
         }
         if (a === 'tbl') { await MDQ.saveFile('جدول_اثر_الاختبار_البعدي.csv', new Blob(['﻿' + [['الدرس', 'الهدف (ناتج التعلم)', 'الأساس', 'المتحقق', 'المستهدف', 'الأثر (نقاط)', 'نسبة الأثر', 'ن', 'تحسّن', 'تراجع', 'الدلالة', 'الحالة', 'التوصيات'].map(q).join(',')]
-          .concat(A.rows.map(x => [lessonOrder[x.lesson], x.outcome, x.base == null ? '' : x.base + '%', x.after == null ? '' : x.after + '%', x.target + '%', x.gain == null ? '' : x.gain, x.roi == null || x.ceil ? '' : x.roi + '%', x.n, x.up, x.down, x.p == null ? '' : x.p.toFixed(3), x.status, x.recs.join(' • ')].map(q).join(','))).join('\r\n')], { type: 'text/csv;charset=utf-8' })); return; }
+          .concat(A.rows.filter(x => (MDQ.post._view || (goals.length ? 'goals' : 'all')) === 'all' || x.targeted).map(x => [lessonOrder[x.lesson], x.outcome, x.base == null ? '' : x.base + '%', x.after == null ? '' : x.after + '%', x.target + '%', x.gain == null ? '' : x.gain, x.roi == null || x.ceil ? '' : x.roi + '%', x.n, x.up, x.down, x.p == null ? '' : x.p.toFixed(3), x.status, x.recs.join(' • ')].map(q).join(','))).join('\r\n')], { type: 'text/csv;charset=utf-8' })); return; }
         if (a === 'rec') { A.rows.forEach(x => G.logEvent('post', 'قياس الأثر: ' + x.qid, `ن=${x.n} · ${x.base}٪ ← ${x.after}٪ · ${x.status}`)); ctx.msg('سُجّلت نتائج ' + A.rows.length + ' ناتجًا في سجل الوكيل.'); ctx.render(); return; }
         if (a === 'del') { if (confirm('حذف ملف الاختبار البعدي وقراراتكِ من هذا المتصفح؟')) { P.setClear(); ctx.render(); } }
       });
     })();
 
     const g = id => G.list().find(x => x.id === id);
+    const gall = $q('#gAll'); if (gall) gall.onchange = () => body.querySelectorAll('[data-go]:not(:disabled)').forEach(c => c.checked = gall.checked);
     $q('#gGo').onclick = () => {
-      const sel = $q('#gOut'), row = MDQ.outcomes.ROWS.find(r => r.qid === sel.value), t = +$q('#gTar').value;
+      const picked = [...body.querySelectorAll('[data-go]:checked:not(:disabled)')].map(c => c.value), t = +$q('#gTar').value;
+      if (!picked.length) { ctx.msg('حدّدي ناتجًا واحدًا على الأقل (أو «تحديد كل الأهداف»).'); return; }
       if (!(t >= 1 && t <= 100)) return;
-      G.create(model, { qid: sel.value, outcome: row.outcome, cls: $q('#gCls').value, metric: $q('#gMet').value, target: t, due: $q('#gDue').value, note: $q('#gNote').value.trim() });
-      ctx.render();
+      picked.forEach(qid => { const row = MDQ.outcomes.ROWS.find(r => r.qid === qid); G.create(model, { qid, outcome: row.outcome, cls: $q('#gCls').value, metric: $q('#gMet').value, target: t, due: $q('#gDue').value, note: $q('#gNote').value.trim() }); });
+      ctx.msg('بدأ الوكيل ' + picked.length + ' هدفًا. عند رفع الاختبار البعدي تُقاس كلها معًا.'); ctx.render();
     };
     function $q(s) { return body.querySelector(s); }
     body.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => ctx.openStudent(b.dataset.sid));

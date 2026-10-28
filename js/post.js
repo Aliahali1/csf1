@@ -94,7 +94,8 @@
       let status, cands = [], auto = null;
       if (!k) { status = 'empty'; }
       else if (byNorm.has(k)) {
-        const arr = byNorm.get(k);
+        let arr = byNorm.get(k);
+        if (arr.length > 1 && r.cls) { const c = G().normCls(r.cls), f = arr.filter(x => G().normCls(x.className) === c); if (f.length === 1) arr = f; }
         if (arr.length === 1) { status = 'exact'; auto = arr[0]; cands = [{ s: arr[0], score: 1 }]; }
         else { status = 'dupe'; cands = arr.map(s => ({ s, score: 1 })); }
       } else {
@@ -239,5 +240,100 @@
     return r;
   }
 
-  MDQ.post = { readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
+
+  /* ============================================================
+     التحليل الآلي لملف الاختبار البعدي (نموذج Google Forms المُصدَّر)
+     الهيكل: قراءة ← مطابقة أعمدة الأسئلة ببنك الموقع ← مطابقة الأسماء (بموافقة المعلمة)
+            ← الأساس (محاولة أولى في الموقع) ← المتحقق (نقطة السؤال) ← الأثر ← التوصيات
+     تُحلَّل فقط النواتج التي لها سؤال في الاختبار البعدي؛ ما عداها خارج التحليل.
+     ============================================================ */
+  const SK = 'mdq.agent.postset.v1', CEIL = 85;
+  const getSet = () => { try { return JSON.parse(localStorage.getItem(SK) || 'null'); } catch (e) { return null; } };
+  const putSet = v => { try { localStorage.setItem(SK, JSON.stringify(v)); } catch (e) {} };
+  const textSim = (a, b) => { a = normAr(a); b = normAr(b); if (!a || !b) return 0; return a === b ? 1 : 1 - lev(a, b) / Math.max(a.length, b.length); };
+
+  function ingest(table, file) {
+    if (!table || table.length < 2) throw new Error('الملف فارغ.');
+    const H = table[0].map(h => String(h == null ? '' : h).replace(/ /g, ' ').trim());
+    const nameCol = H.findIndex(h => /اسم/.test(h)), clsCol = H.findIndex(h => /(الفصل|الشعبة)/.test(h));
+    if (nameCol < 0) throw new Error('لم أجد عمود «اسم الطالبة» في الملف.');
+    const isPts = h => /^النقاط\s*-/.test(h), isNote = h => /^الملاحظات\s*-/.test(h);
+    const ptsQ = {}; H.forEach((h, i) => { if (isPts(h)) { const k = normAr(h.replace(/^النقاط\s*-\s*/, '')); (ptsQ[k] = ptsQ[k] || []).push(i); } });
+    const used = {}, items = [], unmapped = [], dups = [], bank = MDQ.bank.QUESTIONS, seenQ = new Set();
+    H.forEach((h, i) => {
+      if (!h || i === nameCol || i === clsCol || isPts(h) || isNote(h) || /^إجمالي/.test(h)) return;
+      const k = normAr(h), q = (used[k] = (used[k] || 0) + 1) - 1, pc = (ptsQ[k] || [])[q];
+      if (pc == null) return;                                   // عمود ليس سؤالًا مُصحَّحًا
+      let best = null, bs = 0; bank.forEach(b => { const sc = textSim(h, b.text); if (sc > bs) { bs = sc; best = b; } });
+      if (!best || bs < 0.85) { unmapped.push(h.slice(0, 60)); return; }
+      if (seenQ.has(best.id)) { dups.push(best.id); return; }  // سؤال مكرر في النموذج: يُعتمد الأول فقط
+      seenQ.add(best.id); items.push({ qid: best.id, header: h.slice(0, 80), ptsCol: pc, score: Math.round(bs * 100) });
+    });
+    if (!items.length) throw new Error('لم أطابق أي سؤال في الملف مع أسئلة الموقع. تأكدي أنه ملف نتائج النموذج المُصدَّر.');
+    const max = {}; items.forEach(it => { max[it.qid] = Math.max(1, ...table.slice(1).map(r => parseFloat(String(r[it.ptsCol] || '0').replace('٫', '.')) || 0)); });
+    const rows = table.slice(1).map((r, i) => {
+      const pts = {}; items.forEach(it => { const raw = String(r[it.ptsCol] == null ? '' : r[it.ptsCol]).trim(); const v = parseFloat(raw.replace('٫', '.')); pts[it.qid] = raw === '' || isNaN(v) ? null : (v >= max[it.qid] ? 1 : 0); });
+      return { key: 'r' + (i + 2), name: String(r[nameCol] == null ? '' : r[nameCol]).replace(/ /g, ' ').trim(), cls: clsCol >= 0 ? String(r[clsCol] || '').trim() : '', pts };
+    });
+    const set = { file, at: new Date().toISOString(), target: 80, decisions: {}, items, rows, unmapped, dups };
+    putSet(set); G().logEvent('post', 'رُفع ملف الاختبار البعدي', `${file} · ${rows.length} صفًا · ${items.length} ناتجًا مطابقًا` + (dups.length ? ` · سؤال مكرر تجاهلتُ تكراره (${dups.join('، ')})` : ''));
+    return set;
+  }
+
+  function hasMcNemar(up, down) { // اختبار ثنائي الحدين الدقيق (ماكنمار) ثنائي الطرف
+    const n = up + down; if (!n) return 1; const k = Math.min(up, down);
+    const lc = x => { let r = 0; for (let i = 2; i <= x; i++) r += Math.log(i); return r; };
+    let p = 0; for (let i = 0; i <= k; i++) p += Math.exp(lc(n) - lc(i) - lc(n - i) - n * Math.log(2));
+    return Math.min(1, 2 * p);
+  }
+
+  function analyze(set, model, goals) {
+    const students = model.students, rows = set.rows.map(r => ({ key: r.key, cells: [r.name], cls: r.cls, src: r }));
+    const ms = match(rows, 0, students, set.decisions);
+    const tally = { rows: ms.length, empty: ms.filter(m => m.status === 'empty').length, exact: ms.filter(m => m.status === 'exact' && m.decided && !m.byTeacher).length,
+      byTeacher: ms.filter(m => m.final && !m.needs && m.byTeacher).length, excluded: ms.filter(m => m.decided && !m.final && m.status !== 'empty').length, pending: ms.filter(m => m.needs).length };
+    const accepted = [], seen = new Set();
+    ms.forEach(m => { if (m.final && !m.needs && !seen.has(m.final.studentId)) { seen.add(m.final.studentId); accepted.push(m); } });
+    const out = [];
+    set.items.forEach(it => {
+      const orow = MDQ.outcomes.ROWS.find(r => r.qid === it.qid); if (!orow) return;
+      const g = (goals || []).find(x => x.qid === it.qid), goal = { qid: it.qid, metric: g ? g.metric : 'first' }, target = g ? g.target : set.target;
+      const per = [];
+      accepted.forEach(m => { const b = baselineOf(m.final, goal), a = m.row.src.pts[it.qid]; if (b && a != null) per.push({ s: m.final, name: m.final.name, base: b.pass, post: a === 1 }); });
+      const n = per.length, bp = per.filter(x => x.base).length, pp = per.filter(x => x.post).length;
+      const base = pctOf(bp, n), after = pctOf(pp, n), up = per.filter(x => !x.base && x.post).length, down = per.filter(x => x.base && !x.post).length;
+      const gain = n ? after - base : null, ceil = n && base >= CEIL;
+      const roi = n && base < target ? Math.round((after - base) / (target - base) * 100) : null, hake = n && base < 100 ? Math.round((after - base) / (100 - base) * 100) : null;
+      const fail = per.filter(x => !x.post);
+      const r = { qid: it.qid, lesson: orow.lesson, outcome: orow.outcome, targeted: !!g, n, base, after, target, gain, roi, hake, up, down, ceil, p: n ? hasMcNemar(up, down) : null, fail, stay: per.filter(x => !x.base && !x.post), per };
+      r.status = !n ? 'لا بيانات مقارَنة' : n < 8 ? 'عدد قليل' : ceil ? 'سقف: متحقق أصلًا' : after >= target ? 'تحقق الهدف' : gain >= 5 ? 'تحسّن' : 'لم يتحسن';
+      r.recs = recsFor(r);
+      out.push(r);
+    });
+    const order = { db: 0, query: 1, device: 2, cyber: 3 };
+    out.sort((a, b) => (order[a.lesson] - order[b.lesson]) || a.qid.localeCompare(b.qid));
+    // مجموعة ضابطة داخلية: تحسّن نواتج التدخل (لها هدف) مقابل غيرها لنفس الطالبات (دون السقف)
+    const ok = out.filter(x => x.n >= 8 && !x.ceil), t = ok.filter(x => x.targeted), c = ok.filter(x => !x.targeted);
+    const mean = a => a.reduce((s, x) => s + x.gain, 0) / a.length;
+    const did = t.length && c.length >= 3 ? { t: Math.round(mean(t)), c: Math.round(mean(c)), diff: Math.round(mean(t) - mean(c)), nt: t.length, nc: c.length } : null;
+    return { ms, tally, rows: out, did, accepted: accepted.length };
+  }
+  function recsFor(r) {
+    if (!r.n) return ['لا طالبات مقارَنات لهذا الناتج (لا أساس في الموقع أو لا درجة).'];
+    if (r.ceil) return ['متحقق قبليًا (≥' + CEIL + '٪): لا يُحكم عليه بأثر؛ يكفي الحفاظ عليه ولا يحتاج تدخلًا.'];
+    const o = [];
+    if (r.n < 8) o.push('عدد المقارَنات قليل؛ لا تعتمدي النتيجة.');
+    if (r.after >= r.target) o.push('بلغ المستهدف: ثبّتي الأسلوب ووثّقيه.');
+    else if (r.gain >= 5) o.push(`تحسّن ${r.gain} نقطة وبقيت فجوة ${r.target - r.after}: كرّري التدخل على غير المتحققات.`);
+    else o.push('لا تحسن كافٍ: غيّري أسلوب المعالجة (سبب آخر من وكيل الأهداف) بدل التكرار.');
+    if (r.fail.length) o.push(`${r.fail.length} طالبة لم تتحقق: دعم فردي/مجموعة صغيرة.`);
+    if (r.down) o.push(`${r.down} تراجعت: راجعي ثبات التعلم.`);
+    if (r.n >= 8 && r.p != null && r.p > 0.05 && r.gain >= 5) o.push('الفرق غير دالّ إحصائيًا (قد يكون صدفة).');
+    return o;
+  }
+  const setDecide = (entries, label) => { const s = getSet(); entries.forEach(e => { s.decisions[e.key] = e.val; }); putSet(s); G().logEvent('post', label, entries.length + ' صفًا'); };
+  const setTarget = t => { const s = getSet(); s.target = t; putSet(s); };
+  const setClear = () => { try { localStorage.removeItem(SK); } catch (e) {} G().logEvent('post', 'حُذف ملف الاختبار البعدي', ''); };
+
+  MDQ.post = { ingest, analyze, getSet, putSet, setDecide, setTarget, setClear, CEIL, readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
 })();

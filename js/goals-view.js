@@ -11,6 +11,53 @@
 
     const resTable = rows => `<div class="t-scroll"><table class="t-table"><thead><tr><th>الهدف</th><th>الأساس (بيانات الموقع)</th><th>المتحقق (الاختبار البعدي)</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th></tr></thead><tbody>
       ${rows.map(x => `<tr><td>${esc(x.goal)}</td><td class="num">${esc(x.base)}</td><td class="num">${esc(x.after)}</td><td class="num">${esc(x.target)}</td><td>${esc(x.impact)}</td><td><ul style="margin:0;padding-inline-start:18px">${x.recs.map(t => `<li>${esc(t)}</li>`).join('')}</ul></td></tr>`).join('')}</tbody></table></div>`;
+
+    /* ---- تحليل الاختبار البعدي (رفع واحد) ---- */
+    const lessonOrder = { db: 'إنشاء قاعدة البيانات', query: 'الاستعلام والتقارير', device: 'حماية جهاز الحاسب', cyber: 'مقدمة في الأمن السيبراني' };
+    const postAuto = () => {
+      const P = MDQ.post, set = P.getSet();
+      let h = `<section class="panel card" id="pAuto" style="margin-bottom:16px"><h2>تحليل الاختبار البعدي (ارفعي الملف مرة واحدة)</h2>
+        <details><summary class="muted small-print">هيكل التحليل: كيف يعمل الوكيل فور رفع الملف</summary><ol class="small-print">
+          <li><b>القراءة:</b> يقرأ ملف النتائج المُصدَّر من النموذج (اسم الطالبة، الفصل، ونقاط كل سؤال).</li>
+          <li><b>مطابقة الأسئلة:</b> يطابق نص كل سؤال بسؤال الموقع، فيعرف ناتج التعلم تلقائيًا. تُحلَّل النواتج المذكورة في البعدي فقط.</li>
+          <li><b>مطابقة الأسماء:</b> التام يُقبل، والمشابه أو غير المطابق أو المكرر يتوقف عنده ويطلب موافقتكِ.</li>
+          <li><b>الأساس:</b> نتيجة الطالبة في الموقع من المحاولة الأولى. <b>المتحقق:</b> نقطة السؤال في البعدي. <b>المستهدف:</b> تحدّدينه (أو هدفكِ المسجّل للناتج).</li>
+          <li><b>الأثر:</b> الفرق بالنقاط، ونسبة الأثر العائد، والمكسب المُطبَّع، ودلالة ماكنمار، ثم <b>التوصيات</b>. النواتج المتحققة قبليًا (≥${P.CEIL}٪) تُعلَّم «سقف» ولا يُحكم عليها بأثر.</li></ol></details>`;
+      if (!set) return h + `<p class="muted small-print">ارفعي الملف كما صدّرتِه من النموذج (Excel أو CSV). يبقى في متصفحكِ ولا يُرسل لأي جهة، ويبدأ التحليل فور رفعه.</p>
+        <div class="row"><input type="file" accept=".xlsx,.csv" id="pFile"><button class="btn gold" id="pGo">ارفعي وحلّلي</button></div></section>`;
+      const A = P.analyze(set, model, goals), t = A.tally;
+      h += `<p class="muted small-print">${esc(set.file)} · ${esc(T(set.at))} · ${t.rows} صفًا · ${set.items.length} ناتجًا مطابقًا${set.dups.length ? ' · سؤال مكرر في النموذج اعتمدتُ أوله فقط (' + esc(set.dups.join('، ')) + ')' : ''}${set.unmapped.length ? ' · أعمدة لم تُطابَق: ' + set.unmapped.length : ''}${t.empty ? ' · ' + t.empty + ' صف بلا اسم (تجاهلتُه)' : ''}</p>
+        <div class="kpis num"><div class="panel kpi"><b>${t.exact}</b><small>مطابقة تامة</small></div><div class="panel kpi"><b>${t.byTeacher}</b><small>أقرّتها المعلمة</small></div><div class="panel kpi"><b>${t.excluded}</b><small>مستبعدة</small></div><div class="panel kpi"><b>${t.pending}</b><small>بانتظار قراركِ</small></div></div>
+        <div class="row" style="margin:8px 0"><label>المستهدف الافتراضي ٪ <input type="number" id="pTar" min="1" max="100" value="${set.target}" class="t-input" style="width:80px"></label><button class="btn ghost small" id="pTarGo">طبّقي</button><span class="muted small-print">للنواتج التي لا هدف مسجّل لها؛ أما التي لها هدف فيُستخدم هدفها (ومقياسها).</span></div>`;
+      const asks = A.ms.filter(m => m.needs);
+      if (asks.length) {
+        const all = model.students.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+        h += `<div class="banner bad" style="margin:8px 0"><div><b>توقفتُ وأحتاج قراركِ:</b> هذه الأسماء ليست مطابقة تامة لطالبات الموقع (أو مكررة). لن تدخل في التحليل حتى تقرّري، والتحليل أدناه يخص المقبولات فقط.</div></div>
+          <div class="row" style="margin:6px 0"><label><input type="checkbox" id="pAll"> تحديد الكل</label><button class="btn small" data-xa="acc">اقبلي أقرب مرشح للمحددات</button><button class="btn ghost small" data-xa="x">استبعدي المحددات</button></div>
+          <div class="t-scroll" style="max-height:320px"><table class="t-table"><thead><tr><th></th><th>الاسم في الملف</th><th>الحالة</th><th>القرار</th></tr></thead><tbody>
+          ${asks.map(m => { const cs = m.cands.map(c => [c.s.studentId, `${c.s.name} · ${G.normCls(c.s.className)}${c.score < 1 ? ' · ' + Math.round(c.score * 100) + '٪' : ''}`]), rest = all.filter(x => !m.cands.some(c => c.s.studentId === x.studentId)).map(x => [x.studentId, `${x.name} · ${G.normCls(x.className)}`]);
+            return `<tr data-xr="${esc(m.row.key)}"><td><input type="checkbox" data-xk></td><td>${esc(m.name)}</td><td><span class="pill ${m.status === 'similar' ? 'mid' : 'low'}">${esc(m.multi ? 'صفّان لطالبة واحدة' : stLbl[m.status])}</span></td>
+              <td><select class="t-input" data-xd><option value="">— اختاري —</option><option value="x">استبعاد</option>${cs.length ? `<optgroup label="مرشحات">${optS(cs, '')}</optgroup>` : ''}<optgroup label="كل الطالبات">${optS(rest, '')}</optgroup></select></td></tr>`; }).join('')}</tbody></table></div>`;
+      }
+      const R = A.rows;
+      h += `<h3 style="margin:12px 0 4px">نتائج الأثر لكل ناتج (${R.length} ناتجًا مذكورًا في الاختبار البعدي · ${A.accepted} طالبة مقبولة)</h3>
+        <div style="overflow-x:auto"><table class="t-table"><thead><tr><th>الهدف (ناتج التعلم)</th><th>الأساس</th><th>المتحقق</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th></tr></thead><tbody>
+        ${Object.keys(lessonOrder).map(l => { const rs = R.filter(x => x.lesson === l); if (!rs.length) return ''; return `<tr><td colspan="6" style="background:var(--surface-2,#f7eef6)"><b>${esc(lessonOrder[l])}</b></td></tr>` + rs.map(x =>
+          `<tr><td>${esc(x.outcome)}${x.targeted ? ' <span class="pill ok">له هدف</span>' : ''}<br><span class="pill ${x.status === 'تحقق الهدف' || x.status === 'تحسّن' ? 'ok' : x.status === 'لم يتحسن' ? 'low' : 'mid'}">${esc(x.status)}</span></td>
+            <td class="num">${x.base == null ? '—' : x.base + '٪'}</td><td class="num">${x.after == null ? '—' : x.after + '٪'}</td><td class="num">${x.target}٪</td>
+            <td class="num">${x.n ? (x.gain >= 0 ? '+' : '') + x.gain + ' نقطة' + (x.ceil ? '' : ' · أثر ' + (x.roi == null ? '—' : x.roi + '٪') + (x.hake == null ? '' : ' · مكسب ' + x.hake + '٪')) + '<br><small class="muted">ن=' + x.n + ' · تحسّن ' + x.up + ' / تراجع ' + x.down + (x.p == null ? '' : ' · ف=' + (x.p < 0.001 ? '<0.001' : x.p.toFixed(3))) + '</small>' : '—'}</td>
+            <td><ul style="margin:0;padding-inline-start:16px">${x.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></td></tr>`).join(''); }).join('')}</tbody></table></div>`;
+      if (A.did) h += `<div class="banner info" style="margin:8px 0"><div><b>مقارنة داخلية (مجموعة ضابطة بديلة):</b> متوسط تحسّن النواتج التي نفّذتِ عليها تدخلًا = <b>${A.did.t >= 0 ? '+' : ''}${A.did.t}</b> نقطة (${A.did.nt} نواتج)، مقابل <b>${A.did.c >= 0 ? '+' : ''}${A.did.c}</b> للنواتج الأخرى لنفس الطالبات (${A.did.nc} نواتج)؛ الفرق <b>${A.did.diff >= 0 ? '+' : ''}${A.did.diff}</b>. هذا أقرب لأثر التدخل لأن أثر التذكر يمس النوعين معًا.</div></div>`;
+      else h += `<p class="muted small-print">المقارنة الداخلية (نواتج التدخل مقابل غيرها) تظهر حين يكون لديكِ هدف مسجّل لناتج واحد على الأقل وثلاثة نواتج أخرى دون السقف.</p>`;
+      h += `<div class="banner info" style="margin:8px 0"><div><b>تنبيه قراءة:</b> الاختبار البعدي بنفس أسئلة الموقع، فجزء من التحسّن قد يكون تذكّرًا للإجابة لا تعلّمًا؛ والمقارنة وصفية ولا تثبت أن التدخل وحده هو السبب. النواتج المتحققة قبليًا لا تُظهر تحسّنًا بحكم السقف.</div></div>
+        <h3 style="margin:10px 0 4px">طالبات لم يتحققن (حدّدي ثم نفّذي)</h3>
+        <div class="row"><label>الناتج<select class="t-input" id="pOut">${R.filter(x => x.fail.length).map(x => `<option value="${esc(x.qid)}">${esc(x.outcome.slice(0, 70))} (${x.fail.length})</option>`).join('') || '<option value="">لا طالبات</option>'}</select></label>
+          <label><input type="checkbox" id="pAllF"> تحديد الكل</label><button class="btn small" data-xa="copy">انسخي الأسماء</button><button class="btn small" data-xa="csv">قائمة CSV</button><button class="btn small" data-xa="print">قائمة دعم (Word)</button></div>
+        <div id="pFail" class="t-scroll" style="max-height:220px"></div>
+        <div class="row" style="margin-top:10px"><button class="btn gold small" data-xa="tbl">${I.download} تنزيل جدول الأثر (CSV)</button><button class="btn gold small" data-xa="rec">سجّلي النتائج في سجل الوكيل</button><button class="btn ghost small" data-xa="del">حذف ملف الاختبار البعدي</button></div></section>`;
+      return h;
+    };
+
     /* ---- الاختبار البعدي ---- */
     const PEND = (MDQ.post._pending = MDQ.post._pending || {});
     const optS = (arr, sel) => arr.map(([v, t]) => `<option value="${esc(v)}" ${String(v) === String(sel) ? 'selected' : ''}>${esc(t)}</option>`).join('');
@@ -130,12 +177,56 @@
           <label style="flex:1;min-width:160px">ملاحظة<input id="gNote" class="t-input" placeholder="اختياري"></label>
           <button class="btn gold" id="gGo">ابدئي الهدف</button></div>
         <p class="muted small-print">يحسب الوكيل خط الأساس الآن من بياناتكِ، ثم يشخّص ويقترح. بعد تنفيذ الخطوة وإعادة استيراد الردود اضغطي «راجعي» ليقيّم الأثر ويعدّل مساره.</p></section>
+      ${postAuto()}
       ${goals.some(x => x.post) ? `<section class="panel card" style="margin-bottom:16px"><h2>ملخص أثر الأهداف (بعد الاختبار البعدي)</h2>${resTable(goals.filter(x => x.post).map(x => MDQ.post.row(x, model)))}<div class="row" style="margin-top:8px"><button class="btn gold small" id="gSum">${I.download} تنزيل الجدول (CSV)</button></div></section>` : ''}
       ${goals.length ? goals.map(goalCard).join('') : '<div class="panel" style="padding:20px"><p class="muted">لا أهداف بعد. حدّدي هدفًا ليبدأ الوكيل.</p></div>'}
       <section class="panel card"><h2>سجل عمل الوكيل (${G.log().length})</h2>
         <div class="t-scroll" style="max-height:240px"><table class="t-table"><thead><tr><th>الوقت</th><th>الحدث</th><th>التفصيل</th></tr></thead><tbody>
         ${G.log().slice(-60).reverse().map(x => `<tr><td class="num">${esc(T(x.at))}</td><td>${esc(x.event)}</td><td>${esc(x.detail)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">لا أحداث.</td></tr>'}</tbody></table></div>
         <div class="row" style="margin-top:8px"><button class="btn gold small" id="gLog">${I.download} تنزيل السجل (CSV)</button></div></section>`;
+
+
+    /* معالجات التحليل الآلي */
+    (function () {
+      const P = MDQ.post, root = body.querySelector('#pAuto'); if (!root) return;
+      const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const set = P.getSet(), A = set ? P.analyze(set, model, goals) : null;
+      const go = root.querySelector('#pGo');
+      if (go) go.onclick = async () => {
+        const f = root.querySelector('#pFile').files[0]; if (!f) { ctx.msg('اختاري ملف النتائج أولًا.'); return; }
+        try { P.ingest(await P.readFile(f), f.name); ctx.render(); } catch (e) { ctx.msg(e.message || 'تعذّرت قراءة الملف.'); }
+      };
+      if (!set) return;
+      root.querySelector('#pTarGo').onclick = () => { const v = +root.querySelector('#pTar').value; if (v >= 1 && v <= 100) { P.setTarget(v); ctx.render(); } };
+      const pa = root.querySelector('#pAll'); if (pa) pa.onchange = () => root.querySelectorAll('[data-xk]').forEach(c => c.checked = pa.checked);
+      root.querySelectorAll('[data-xd]').forEach(sel => sel.onchange = () => { if (sel.value) { P.setDecide([{ key: sel.closest('tr').dataset.xr, val: sel.value }], sel.value === 'x' ? 'استبعدت المعلمة صفًا' : 'أقرّت المعلمة مطابقة'); ctx.render(); } });
+      const fail = () => { const x = A.rows.find(r => r.qid === (root.querySelector('#pOut') || {}).value); return x ? x.fail : []; };
+      const drawFail = () => { const el = root.querySelector('#pFail'), f = fail(); el.innerHTML = f.length ? `<table class="t-table"><tbody>${f.map(p => `<tr data-fs="${esc(p.s.studentId)}"><td><input type="checkbox" data-fk></td><td><button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button></td><td>${esc(G.normCls(p.s.className))}</td><td>${p.base ? 'كانت متحققة قبليًا' : 'لم تتحقق قبليًا'}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small-print">لا طالبات.</p>';
+        el.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => ctx.openStudent(b.dataset.sid)); const pf = root.querySelector('#pAllF'); pf.checked = false; };
+      const po = root.querySelector('#pOut'); if (po) { po.onchange = drawFail; drawFail(); root.querySelector('#pAllF').onchange = e => root.querySelectorAll('[data-fk]').forEach(c => c.checked = e.target.checked); }
+      root.querySelectorAll('[data-xa]').forEach(b => b.onclick = async () => {
+        const a = b.dataset.xa;
+        if (a === 'acc' || a === 'x') {
+          const trs = [...root.querySelectorAll('[data-xk]')].filter(c => c.checked).map(c => c.closest('tr')); if (!trs.length) { ctx.msg('حدّدي اسمًا واحدًا على الأقل.'); return; }
+          const ent = []; let skip = 0; trs.forEach(tr => { const m = A.ms.find(z => z.row.key === tr.dataset.xr); if (!m) return; if (a === 'x') ent.push({ key: m.row.key, val: 'x' }); else if (m.status === 'similar' && m.cands.length) ent.push({ key: m.row.key, val: m.cands[0].s.studentId }); else skip++; });
+          if (ent.length) P.setDecide(ent, a === 'x' ? 'استبعدت المعلمة مجموعة' : 'أقرّت المعلمة مطابقة مجموعة');
+          if (skip) ctx.msg(skip + ' اسم لا مرشح واضحًا له (مكرر أو غير مطابق): اختاري له يدويًا.'); ctx.render(); return;
+        }
+        if (a === 'copy' || a === 'csv' || a === 'print') {
+          const sel = [...root.querySelectorAll('[data-fk]')].filter(c => c.checked).map(c => c.closest('tr')).map(tr => ({ name: tr.children[1].textContent.trim(), cls: tr.children[2].textContent.trim() }));
+          if (!sel.length) { ctx.msg('حدّدي طالبة واحدة على الأقل.'); return; }
+          const oc = (A.rows.find(r => r.qid === root.querySelector('#pOut').value) || {}).outcome || '';
+          if (a === 'copy') { try { await navigator.clipboard.writeText(sel.map(x => x.name).join('\n')); ctx.msg('نُسخت ' + sel.length + ' أسماء.'); } catch (e) { prompt('انسخي الأسماء:', sel.map(x => x.name).join('\n')); } }
+          else if (a === 'csv') await MDQ.saveFile('طالبات_لم_يتحققن.csv', new Blob(['﻿' + [['الطالبة', 'الفصل', 'الناتج'].map(q).join(',')].concat(sel.map(x => [x.name, x.cls, oc].map(q).join(','))).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+          else await MDQ.saveFile('قائمة_دعم.doc', new Blob(['﻿<html dir="rtl"><head><meta charset="utf-8"></head><body style="font-family:Times New Roman;font-size:14pt"><h2>قائمة دعم — ' + esc(oc) + '</h2><table border="1" cellpadding="6" style="border-collapse:collapse;width:100%"><tr><th>#</th><th>الطالبة</th><th>الفصل</th><th>ملاحظات</th></tr>' + sel.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.cls) + '</td><td></td></tr>').join('') + '</table></body></html>'], { type: 'application/msword' }));
+          G.logEvent('post', 'أمر على طالبات محددات', a + ' · ' + sel.length + ' طالبة'); return;
+        }
+        if (a === 'tbl') { await MDQ.saveFile('جدول_اثر_الاختبار_البعدي.csv', new Blob(['﻿' + [['الدرس', 'الهدف (ناتج التعلم)', 'الأساس', 'المتحقق', 'المستهدف', 'الأثر (نقاط)', 'نسبة الأثر', 'ن', 'تحسّن', 'تراجع', 'الدلالة', 'الحالة', 'التوصيات'].map(q).join(',')]
+          .concat(A.rows.map(x => [lessonOrder[x.lesson], x.outcome, x.base == null ? '' : x.base + '%', x.after == null ? '' : x.after + '%', x.target + '%', x.gain == null ? '' : x.gain, x.roi == null || x.ceil ? '' : x.roi + '%', x.n, x.up, x.down, x.p == null ? '' : x.p.toFixed(3), x.status, x.recs.join(' • ')].map(q).join(','))).join('\r\n')], { type: 'text/csv;charset=utf-8' })); return; }
+        if (a === 'rec') { A.rows.forEach(x => G.logEvent('post', 'قياس الأثر: ' + x.qid, `ن=${x.n} · ${x.base}٪ ← ${x.after}٪ · ${x.status}`)); ctx.msg('سُجّلت نتائج ' + A.rows.length + ' ناتجًا في سجل الوكيل.'); ctx.render(); return; }
+        if (a === 'del') { if (confirm('حذف ملف الاختبار البعدي وقراراتكِ من هذا المتصفح؟')) { P.setClear(); ctx.render(); } }
+      });
+    })();
 
     const g = id => G.list().find(x => x.id === id);
     $q('#gGo').onclick = () => {

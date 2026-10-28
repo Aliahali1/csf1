@@ -107,4 +107,17 @@ ok(P.match([{ key: 'a', cells: ['مكررة جدا', okTxt] }], 0, mD.students, 
 ok(P.grade('1', qd, { mode: 'score', max: 1, pass: 100 }) === true && P.grade('0', qd, { mode: 'score', max: 1, pass: 100 }) === false && P.grade('7', qd, { mode: 'score', max: 10, pass: 60 }) === true && P.grade('صح', qd, { mode: 'score' }) === true && P.grade('', qd, { mode: 'score' }) === null, 'تصحيح الدرجات و صح/خطأ');
 ok(P.grade('أ', qd, { mode: 'choice' }) === (qd.options[0].k === qd.answer), 'تصحيح حرف الخيار');
 ok(P.similarity('فاطمة محمد', 'فاطمة محمد العتيبي') >= 0.72 && P.similarity('فاطمة', 'سارة') < 0.72, 'تشابه الأسماء: المختصر نعم والمختلف لا');
+// ---- التحليل الآلي لملف نموذج الاختبار البعدي ----
+const qA = M.bank.question('db-04'), qB = M.bank.question('db-03'), qC = M.bank.question('cy-08');
+const hdr = ['إجمالي النقاط', 'اسم الطالبة ', 'الفصل', qA.text + ' ', 'النقاط - ' + qA.text + ' ', 'الملاحظات - ' + qA.text, qC.text, 'النقاط - ' + qC.text, qC.text, 'النقاط - ' + qC.text, qB.text, 'النقاط - ' + qB.text];
+const tb = [hdr].concat(names.map((nm, i) => [1, nm, '3/1', 'x', i < 8 ? 1 : 0, '', 'y', 1, 'y', 1, 'z', 1])).concat([[0, ' ', '', '', '', '', '', '', '', '', '', '']]);
+const setA = P.ingest(tb, 't.xlsx');
+ok(setA.items.length === 3 && setA.dups.length === 1 && setA.dups[0] === 'cy-08', 'يطابق الأعمدة بالأسئلة ويتجاهل السؤال المكرر');
+const AA = P.analyze(setA, mP, []);
+ok(AA.tally.empty === 1 && AA.tally.pending === 0 && AA.rows.length === 3, 'الصف بلا اسم يُتجاهل؛ والمطابقة التامة تكتمل');
+const rA = AA.rows.find(x => x.qid === 'db-04');
+ok(rA.n === 10 && rA.after === 80 && rA.base === 30 && rA.up === 5 && !rA.ceil, 'أثر ناتج: ن=10، أساس 30٪، بعدي 80٪');
+ok(AA.rows.find(x => x.qid === 'cy-08').n === 0, 'ناتج بلا أساس في الموقع: لا مقارنة');
+ok(P.analyze(setA, mP, [{ qid: 'db-04', target: 90, metric: 'first' }]).rows.find(x => x.qid === 'db-04').target === 90, 'يستخدم هدف المعلمة المسجّل للناتج');
+
 console.log(`نجح: ${n} اختبارًا`);

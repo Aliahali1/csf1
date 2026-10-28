@@ -35,7 +35,9 @@
     get() {
       const base = JSON.parse(JSON.stringify(CFG.DEFAULT_SETTINGS || {}));
       const saved = this._remote || store.get(K.settings, {});
-      return Object.assign(base, saved || {});
+      const out = Object.assign({}, base, saved || {});
+      if (!out.classOptions || !out.classOptions.length) out.classOptions = base.classOptions; // قائمة الفصول الثابتة لا تُلغى بإعداد قديم فارغ
+      return out;
     },
     saveLocal(obj) { store.set(K.settings, obj); },
     async loadRemote() {

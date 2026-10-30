@@ -299,19 +299,27 @@
   /* ---------------- أداة الرصد (استشارية — للمعلمة فقط) ---------------- */
   function agentView(body, m) {
     if (!m.students.length) { body.innerHTML = empty(); return; }
+    if (MDQ.agent.stopped()) { body.innerHTML = `<div class="banner info"><div>أداة الرصد متوقفة بقرارك. لا تُعرض فئات ولا مسارات.<br><button class="btn small" id="agResume" style="margin-top:8px">استئناف الأداة</button></div></div>`; $('#agResume').onclick = () => { MDQ.agent.resume(); render(); }; return; }
     const R = MDQ.agent.run(m, st.data), Ag = MDQ.agent;
     const tierCls = { 'متميزة': 'ok', 'متقدمة': 'ok', 'في الطريق': 'mid', 'تحتاج دعمًا': 'low' };
     body.innerHTML = `
       <div class="banner info" style="margin-bottom:14px">أداة رصد استشارية بقواعد ثابتة (ليست وكيل ذكاء اصطناعي بتعريف المركز الوطني): تحلّل وتقترح فقط. لا يعدّل الأسئلة ولا المحتوى ولا بيانات الطالبات، ولا يرسل شيئًا خارج هذا المتصفح. كل مقترح مسار يحتاج اعتمادك، ويُسجَّل قرارك. الفئات وصفية وليست درجات رسمية. <b>تنبيه صلاحية:</b> الأجهزة ليست مشتركة بين المجموعات؛ لكل طالبة جهازها في المركز، فقد تعكس إجابات الطالبة المسجَّلة أداءها وحدها؛ فاقرئي «الأوائل» والفئات بحذر قبل أي قرار.</div>
+      <div class="row" style="margin-bottom:12px"><button class="btn ghost small" id="agStop">إيقاف الأداة</button><button class="btn ghost small" id="agWipe">مسح سجل قراراتي</button></div>
+      ${MDQ.agent.cardHTML(esc)}
       ${govCard()}
       <section class="panel card"><h2>فحص جودة البيانات</h2>
         ${R.quality.issues.length ? `<ul>${R.quality.issues.map(i => `<li><span class="pill ${i.lvl === 'warn' ? 'mid' : 'na'}">${i.lvl === 'warn' ? 'انتبهي' : 'معلومة'}</span> ${esc(i.t)}</li>`).join('')}</ul>` : '<p>لا ملاحظات على جودة البيانات.</p>'}
         <p class="muted small-print">هذا الفحص لا يحذف شيئًا؛ يعرض ما يستحق مراجعتك قبل تفسير النتائج.</p></section>
       <section class="panel card" style="margin-top:16px"><h2>فئات التميّز</h2>
         <p class="muted small-print">${esc(R.tiers.formula)} ${R.tiers.notEligible ? `لم تُصنَّف ${R.tiers.notEligible} طالبة (أجبن أقل من ٥ أسئلة).` : ''} ${R.tiers.tieAtTop ? 'يوجد تعادل في الفئة العليا، فلا تُرقَّم المراكز.' : ''}</p>
-        <div class="banner info" style="margin:8px 0"><div><b>الأوائل (أعلى ١٠ نتائج مع التعادل — ${R.tiers.leaders.length} طالبة):</b><br>${R.tiers.leaders.map(r => `<button class="linkish" data-sid="${esc(r.s.studentId)}">${esc(r.s.name)}</button> <small class="muted num">${r.score}</small>`).join('، ')}</div></div>
+        <div class="banner info" style="margin:8px 0"><div><b>أعلى النتائج (أعلى ١٠ مع التعادل — ${R.tiers.leaders.length} طالبة):</b><br>${R.tiers.leaders.map(r => `<button class="linkish" data-sid="${esc(r.s.studentId)}">${esc(r.s.name)}</button> <small class="muted num">${r.score}</small>`).join('، ')}</div></div>
         <div class="grid2">${R.tiers.order.map(o => `<details><summary><span class="pill ${tierCls[o]}">${o}</span> <span class="num">${R.tiers.groups[o].length}</span></summary>
-          <p>${R.tiers.groups[o].map(r => `<button class="linkish" data-sid="${esc(r.s.studentId)}">${esc(r.s.name)}</button> <small class="muted num">${r.score}</small>`).join('، ') || '<span class="muted">لا يوجد</span>'}</p></details>`).join('')}</div></section>
+          <p>${R.tiers.groups[o].map(r => `<button class="linkish" data-sid="${esc(r.s.studentId)}">${esc(r.s.name)}</button> <small class="muted num" title="${esc(Ag.explain(r.s).text)}">${r.score}</small>`).join('، ') || '<span class="muted">لا يوجد</span>'}</p></details>`).join('')}</div>
+        <details style="margin-top:8px"><summary>لماذا هذه الدرجة؟ (مثال من أول طالبة مصنَّفة)</summary><p class="small-print">${(() => { const f = R.tiers.order.map(o => R.tiers.groups[o][0]).find(Boolean); return f ? esc(f.s.name + ': ' + Ag.explain(f.s).text) : 'لا توجد طالبات مصنَّفات.'; })()}</p><p class="muted small-print">مرّري المؤشر فوق أي درجة لقراءة تفصيلها.</p></details></section>
+      <section class="panel card" style="margin-top:16px"><h2>مقارنة الفصول (فحص إنصاف)</h2>
+        ${R.byClass.note ? `<div class="banner info" style="margin-bottom:8px">${esc(R.byClass.note)}</div>` : ''}
+        <div class="t-scroll" style="max-height:none"><table class="t-table"><thead><tr><th>الفصل</th><th>مصنَّفات</th><th>متوسط الدرجة</th><th>٪ تحتاج دعمًا</th><th>٪ متميزة</th></tr></thead><tbody>${R.byClass.rows.map(x => `<tr><td>${esc(x.cls)}${x.small ? ' <small class="muted">(عدد صغير)</small>' : ''}</td><td class="num">${x.n}</td><td class="num">${x.avg}</td><td class="num">${x.supportPct}</td><td class="num">${x.topPct}</td></tr>`).join('')}</tbody></table></div>
+        <p class="muted small-print">الفروق بين الفصول لا تعني بالضرورة فرقًا في التعلم؛ تتأثر بوقت التسجيل والأجهزة وعدد الأسئلة المجابة.</p></section>
       <section class="panel card" style="margin-top:16px"><h2>مسار التقدم بين المراحل</h2>
         <div class="t-scroll" style="max-height:none"><table class="t-table"><thead><tr><th>المرحلة</th><th>بدأن</th><th>أكملن</th><th>توقفن قبل الإكمال</th></tr></thead><tbody>
         ${R.funnel.map(f => `<tr><td>${esc(f.lesson.stage)}<br><small class="muted">${esc(f.lesson.lesson)}</small></td><td class="num">${f.started}</td><td class="num">${f.done}</td><td class="num">${f.dropped}</td></tr>`).join('')}</tbody></table></div></section>
@@ -344,6 +352,8 @@
       MDQ.agent.decide(id, b.dataset.dec, (card.querySelector('[data-note]') || {}).value || '', { tier: tr.tier || '', score: tr.score == null ? '' : tr.score, steps: p ? p.steps.map(x => x.kind + ': ' + x.text) : [], source: (st.data && st.data.fileName) || '' });
       render();
     });
+    $('#agStop').onclick = () => { MDQ.agent.stop(); render(); };
+    $('#agWipe').onclick = () => { if (confirm('يمسح هذا سجل قراراتكِ المحفوظ في هذا المتصفح (أداة الرصد). متابعة؟')) { MDQ.agent.wipe(); render(); } };
     $('#xAudit').onclick = async () => {
       const res = await MDQ.saveFile('سجل_قرارات_أداة_الرصد.csv', new Blob([MDQ.agent.auditCsv(nameOf)], { type: 'text/csv;charset=utf-8' }));
       $('#tmsg').innerHTML = `<div class="banner info" style="margin-bottom:12px">${res === 'declined' ? 'أُلغي حفظ الملف.' : 'جُهّز ملف سجل القرارات.'}</div>`;

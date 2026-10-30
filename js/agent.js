@@ -6,7 +6,8 @@
    ============================================================ */
 (function () {
   const B = () => MDQ.bank;
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
+  const STOP_KEY = 'mdq.agent.tool.stopped.v1';
   const KEY = 'mdq.agent.audit.v1';
   const pct = (a, b) => b ? Math.round(a / b * 100) : null;
   const TEST_NAME = /(اختبار|تجربة|test|demo|xxx)/i;
@@ -116,6 +117,48 @@
     return lines.join('\n');
   }
 
-  function run(m, data) { return { version: VERSION, quality: quality(m, data), tiers: tiers(m), items: items(m), funnel: funnel(m), paths: paths(m) }; }
-  MDQ.agent = { VERSION, run, tiers, quality, items, funnel, paths, decide, decisionOf, audit, auditCsv, pseudoSummary, score };
+
+  /* ---------- شرح النتيجة (لماذا هذه الفئة؟) ---------- */
+  function explain(s) {
+    const sc = score(s);
+    if (sc == null) return { score: null, parts: [], text: 'لم تُصنَّف: أجابت أقل من ٥ أسئلة، والبيانات لا تكفي لحكم عادل.' };
+    const a = Math.round(0.5 * (s.firstPct || 0)), b = Math.round(0.3 * (s.finalPct || 0)), c = Math.round(0.2 * (s.stagesDone / 4 * 100));
+    return { score: sc, parts: [
+      { k: 'دقة المحاولة الأولى', v: s.firstPct || 0, w: 50, c: a }, { k: 'النسبة النهائية', v: s.finalPct || 0, w: 30, c: b },
+      { k: 'المراحل المكتملة', v: Math.round(s.stagesDone / 4 * 100), w: 20, c: c }],
+      text: `الدرجة المركبة ${sc} = ${a} + ${b} + ${c}. الفئة وصف لهذه اللحظة لا حكم على الطالبة، وتتأثر بعدد ما أجابته وبالتسجيل المكرر.` };
+  }
+  /* ---------- مقارنة الفصول (فحص إنصاف: هل تختلف النتائج بين الفصول لسبب في البيانات؟) ---------- */
+  function byClass(m) {
+    const t = tiers(m), map = {};
+    t.order.forEach(o => t.groups[o].forEach(r => { const k = r.s.className || 'بلا فصل'; (map[k] = map[k] || { cls: k, n: 0, support: 0, top: 0, sum: 0 }); const x = map[k]; x.n++; x.sum += r.score; if (o === 'تحتاج دعمًا') x.support++; if (o === 'متميزة') x.top++; }));
+    const rows = Object.values(map).map(x => ({ cls: x.cls, n: x.n, avg: Math.round(x.sum / x.n), supportPct: pct(x.support, x.n), topPct: pct(x.top, x.n), small: x.n < 10 })).sort((a, b) => a.cls.localeCompare(b.cls, 'ar'));
+    const big = rows.filter(r => !r.small);
+    const gap = big.length > 1 ? Math.max(...big.map(r => r.avg)) - Math.min(...big.map(r => r.avg)) : 0;
+    return { rows, gap, note: gap >= 15 ? `فرق بين متوسطات الفصول ${gap} درجة: قد يعود لظروف التسجيل أو الأجهزة لا للتعلم؛ تحققي قبل أي قرار.` : '' };
+  }
+  /* ---------- الإيقاف والمسح (تحكم المعلمة) ---------- */
+  function stopped() { try { return localStorage.getItem(STOP_KEY) === '1'; } catch (e) { return false; } }
+  function stop() { try { localStorage.setItem(STOP_KEY, '1'); } catch (e) {} }
+  function resume() { try { localStorage.removeItem(STOP_KEY); } catch (e) {} }
+  function wipe() { try { localStorage.removeItem(KEY); } catch (e) {} }
+
+  /* ---------- بطاقة الأداة وفق معايير الوكلاء (بمعيار التناسب) ---------- */
+  const CLASS = [['المجال', 'رصد تعليمي داخل صف واحد'], ['الاستقلالية', 'المستوى ١: تحلّل وتقترح فقط ولا تنفّذ شيئًا'], ['الأثر', 'متوسط: تؤثر على قراءة المعلمة لأداء الطالبات وليس على درجاتهن'], ['التقنية', 'قواعد ثابتة ومعادلة معلنة؛ ليست نموذج ذكاء اصطناعي']];
+  const ALLOW = ['حساب الفئات والمسارات من بيانات الموقع المستوردة', 'فحص جودة البيانات وتنبيه المعلمة', 'اقتراح مسارات من محتوى الدروس القائم'];
+  const DENY = ['تعديل الأسئلة أو المحتوى أو بيانات الطالبات', 'إرسال أي شيء خارج المتصفح أو إلى الطالبات وأولياء الأمور', 'أي درجات رسمية أو جزاءات أو قرارات قبول', 'تنفيذ أي مسار دون اعتماد المعلمة'];
+  const CHANGES = [['2026-10-30', '1.1.0', 'شرح الدرجة المركبة لكل طالبة، فحص مقارنة الفصول، مفتاح إيقاف ومسح السجل، بطاقة الأداة، تسمية «أعلى النتائج» بدل «الأوائل»', 'مواءمة مع تعديلات وكيل الأهداف ومعايير الوكلاء'], ['—', '1.0.0', 'الإصدار الأول: فئات، جودة بيانات، مسارات، سجل قرارات', '—']];
+  function cardHTML(esc) {
+    const li = a => '<ul style="margin:4px 0;padding-inline-start:18px">' + a.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>';
+    return `<section class="panel card" id="agCard" style="margin-bottom:16px"><details><summary><h2 style="display:inline">بطاقة الأداة وفق معايير الوكلاء</h2></summary>
+      <p class="muted small-print">وصف لما نُفِّذ بمعيار التناسب لأداة معلمة واحدة، وليس شهادة مطابقة.</p>
+      <div class="t-scroll"><table class="t-table"><tbody>${CLASS.map(r => `<tr><th>${esc(r[0])}</th><td>${esc(r[1])}</td></tr>`).join('')}</tbody></table></div>
+      <p><b>يُسمح:</b></p>${li(ALLOW)}<p><b>يُمنع:</b></p>${li(DENY)}
+      <p class="small-print">غياب قراركِ لا يُعدّ موافقة. القرارات تُحفظ في هذا المتصفح فقط ويمكنكِ إيقاف الأداة أو مسح سجلها في أي وقت.</p>
+      <h3>سجل التغييرات</h3><div class="t-scroll"><table class="t-table"><thead><tr><th>التاريخ</th><th>الإصدار</th><th>التغيير</th><th>السبب</th></tr></thead><tbody>${CHANGES.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    </details></section>`;
+  }
+
+  function run(m, data) { return { version: VERSION, byClass: byClass(m), quality: quality(m, data), tiers: tiers(m), items: items(m), funnel: funnel(m), paths: paths(m) }; }
+  MDQ.agent = { VERSION, run, tiers, quality, items, funnel, paths, decide, decisionOf, audit, auditCsv, pseudoSummary, score, explain, byClass, stopped, stop, resume, wipe, cardHTML, CHANGES };
 })();

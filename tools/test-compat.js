@@ -120,4 +120,19 @@ ok(rA.n === 10 && rA.after === 80 && rA.base === 30 && rA.up === 5 && !rA.ceil, 
 ok(AA.rows.find(x => x.qid === 'cy-08').n === 0, 'ناتج بلا أساس في الموقع: لا مقارنة');
 ok(P.analyze(setA, mP, [{ qid: 'db-04', target: 90, metric: 'first' }]).rows.find(x => x.qid === 'db-04').target === 90, 'يستخدم هدف المعلمة المسجّل للناتج');
 
+// ---- أداة الرصد 1.1.0 (مواءمة مع معايير الوكلاء) ----
+{
+  const store = {}; global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+  const A = M.agent;
+  ok(!A.stopped(), 'الأداة تعمل افتراضيًا');
+  A.stop(); ok(A.stopped(), 'الإيقاف يعمل'); A.resume(); ok(!A.stopped(), 'الاستئناف يعمل');
+  A.decide('s1', 'approved', 'x', {}); ok(A.audit().length === 1, 'القرار يُسجَّل');
+  A.wipe(); ok(A.audit().length === 0, 'المسح يزيل السجل');
+  const e = A.explain({ answered: 10, firstPct: 80, finalPct: 100, stagesDone: 2 });
+  ok(e.score === A.score({ answered: 10, firstPct: 80, finalPct: 100, stagesDone: 2 }) && e.parts.reduce((a, p) => a + p.c, 0) === e.score, 'شرح الدرجة يطابق الحساب');
+  ok(A.explain({ answered: 2 }).score === null, 'من أجابت أقل من ٥ لا تُصنَّف');
+  const bc = A.run(model, { duplicates: 0 }).byClass; ok(bc && Array.isArray(bc.rows), 'مقارنة الفصول موجودة');
+  ok(/لا يُعدّ موافقة/.test(A.cardHTML(x => x)), 'بطاقة الأداة تُعرض');
+}
 console.log(`نجح: ${n} اختبارًا`);
+

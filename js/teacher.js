@@ -122,6 +122,7 @@
     const body = $('#tbody');
     if (st.student) studentView(body, model);
     else ({ overview: overviewView, students: studentsView, weak: weakView, outcomes: outcomesView, agent: agentView, goals: goalsView, attempts: attemptsView, export: exportView, bank: bankView, settings: settingsView, connect: connectView }[st.tab])(body, model);
+    if (MDQ.tguide) MDQ.tguide.tab(st.student ? 'students' : st.tab);
     root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { st.tab = b.dataset.tab; st.student = null; st.page = 0; render(); });
     $('#refresh').onclick = () => st.forms ? importScreen() : st.demo ? render() : load();
     $('#logout').onclick = () => MDQ.auth.logout();
@@ -303,7 +304,7 @@
     const R = MDQ.agent.run(m, st.data), Ag = MDQ.agent;
     const tierCls = { 'متميزة': 'ok', 'متقدمة': 'ok', 'في الطريق': 'mid', 'تحتاج دعمًا': 'low' };
     body.innerHTML = `
-      <div class="banner info" style="margin-bottom:14px">أداة رصد استشارية بقواعد ثابتة (ليست وكيل ذكاء اصطناعي بتعريف المركز الوطني): تحلّل وتقترح فقط. لا يعدّل الأسئلة ولا المحتوى ولا بيانات الطالبات، ولا يرسل شيئًا خارج هذا المتصفح. كل مقترح مسار يحتاج اعتمادك، ويُسجَّل قرارك. الفئات وصفية وليست درجات رسمية. <b>تنبيه صلاحية:</b> الأجهزة ليست مشتركة بين المجموعات؛ لكل طالبة جهازها في المركز، فقد تعكس إجابات الطالبة المسجَّلة أداءها وحدها؛ فاقرئي «الأوائل» والفئات بحذر قبل أي قرار.</div>
+      <div class="banner info" style="margin-bottom:14px">أداة رصد استشارية بقواعد ثابتة (ليست وكيل ذكاء اصطناعي بتعريف المركز الوطني): تحلّل وتقترح فقط. لا يعدّل الأسئلة ولا المحتوى ولا بيانات الطالبات، ولا يرسل شيئًا خارج هذا المتصفح. كل مقترح مسار يحتاج اعتمادك، ويُسجَّل قرارك. الفئات وصفية وليست درجات رسمية. <b>تنبيه صلاحية:</b> الأجهزة ليست مشتركة بين المجموعات؛ لكل طالبة جهازها في المركز، فقد تعكس إجابات الطالبة المسجَّلة أداءها وحدها؛ فاقرئي «أعلى النتائج» والفئات بحذر قبل أي قرار.</div>
       <div class="row" style="margin-bottom:12px"><button class="btn ghost small" id="agStop">إيقاف الأداة</button><button class="btn ghost small" id="agWipe">مسح سجل قراراتي</button></div>
       ${MDQ.agent.cardHTML(esc)}
       ${govCard()}

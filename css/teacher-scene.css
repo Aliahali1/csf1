@@ -1,0 +1,21 @@
+/* مشهد لوحة المعلمة (v1.7.6): خلفية الجزر العائمة بحركة هادئة + مرافِقة. لا يمسّ البيانات ولا الحسابات. */
+html.scene-on body.teacher-mode::before { animation: tscene 60s ease-in-out infinite alternate; transform-origin: 50% 40%; }
+@keyframes tscene { from { transform: scale(1.04) translate3d(0, 0, 0); } to { transform: scale(1.12) translate3d(-1.2%, -1%, 0); } }
+html.scene-on body.teacher-mode::after { background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.30) 40%, rgba(255,255,255,.46)); }
+html.scene-on[data-theme="dark"] body.teacher-mode::after { background: rgba(22,18,48,.7); }
+.teacher-mode #petals { display: block; opacity: .6; }
+html.scene-on .t-head, html.scene-on .tabs { background: var(--surface); border-radius: 20px; padding: 12px 16px; box-shadow: var(--shadow); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
+html.scene-on .tabs { margin-bottom: 12px; }
+
+#tguide { position: fixed; inset-inline-end: auto; inset-inline-start: auto; left: 14px; bottom: 14px; z-index: 40; display: flex; align-items: flex-end; gap: 8px; max-width: min(420px, calc(100vw - 28px)); pointer-events: none; }
+#tguide > * { pointer-events: auto; }
+#tguide .tg-bot { width: 84px; flex: none; border: 0; padding: 0; background: none; cursor: pointer; filter: drop-shadow(0 6px 10px rgba(43,34,69,.3)); }
+#tguide .tg-bot:focus-visible { outline: 3px solid #7B5CD6; outline-offset: 3px; border-radius: 24px; }
+#tguide .tg-bubble { margin: 0 0 22px; background: #fff; color: #2B2245; padding: 10px 14px; border-radius: 18px; font-weight: 700; font-size: .92rem; line-height: 1.7; box-shadow: var(--shadow); border: 1px solid var(--line); opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .25s, transform .25s; pointer-events: none; }
+#tguide.talk .tg-bubble { opacity: 1; transform: none; pointer-events: auto; }
+#tguide.hidden .tg-bubble { display: none; }
+#tguide.hidden .tg-bot { width: 52px; opacity: .8; }
+@media (max-width: 560px) { #tguide .tg-bot { width: 62px; } #tguide .tg-bubble { font-size: .85rem; } }
+@media print { #tguide { display: none; } }
+@media (prefers-reduced-motion: reduce) { html.scene-on body.teacher-mode::before, #tguide .tg-bot { animation: none !important; } #tguide .tg-bubble { transition: none; } }
+html[data-contrast="high"] #tguide .tg-bubble { background: #fff; color: #000; border: 2px solid #000; }

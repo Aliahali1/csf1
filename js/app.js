@@ -58,8 +58,15 @@
     render();
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   }
+  /** خلفية المشهد: الخريطة والبداية بمشهد الرحلة، وكل مرحلة بمشهدها */
+  function setScene() {
+    const inStage = ['play', 'results', 'mistakes'].includes(ui.view) && ui.lesson;
+    document.documentElement.classList.add('scene-on');
+    document.body.dataset.scene = inStage ? ui.lesson : 'hero';
+  }
   function render() {
     if (!session && ui.view !== 'welcome') ui.view = 'welcome';
+    setScene();
     renderTop();
     ({ welcome: renderWelcome, map: renderMap, play: renderPlay, results: renderResults, mistakes: renderMistakes }[ui.view] || renderWelcome)();
   }
@@ -205,6 +212,7 @@
           <small class="muted num">${o.done} من ${o.total} مراحل مكتملة · <span class="ltr">${session.xp} XP</span></small>
         </div>
       </div>
+      <div class="guide-banner"><div class="mascot bob">${FX.mascot('happy')}</div><p class="bubble">${FX.line('welcome')}</p></div>
       <section class="stages">
         ${B.LESSONS.map((l, i) => {
           const st = stageStatus(l.id);
@@ -212,6 +220,7 @@
           const stats = st === 'new' ? null : E.stageStats(session, l.id);
           const pct = stats ? Math.round(stats.answered / Math.max(stats.total, 1) * 100) : 0;
           return `<article class="stage ${l.color} ${st === 'done' ? 'is-done' : ''}" style="--i:${i}">
+            <div class="cover"><img src="img/thumb-${l.id}.webp" alt="" width="640" height="360" loading="lazy" decoding="async"></div>
             <div class="node">${I[LICON[l.id]]}${st === 'done' ? `<span class="done-mark">${I.check}</span>` : ''}</div>
             <div class="lvl">المرحلة ${ORD[i]}</div>
             <h3>${esc(l.stage)}</h3>
@@ -234,7 +243,7 @@
         <div class="shelf">
           ${allBadges.map(b => {
             const n = owned.filter(x => x.id === b.id).length;
-            return `<div class="medal ${n ? '' : 'locked'}"><span class="disc">${I[b.icon]}</span><div style="min-width:0"><b>${esc(b.name)}${n > 1 ? ` <span class="num">×${n}</span>` : ''}</b><small>${esc(b.desc)}</small></div></div>`;
+            return `<div class="medal ${n ? '' : 'locked'}"><span class="disc">${FX.badge(b.id)}</span><div style="min-width:0"><b>${esc(b.name)}${n > 1 ? ` <span class="num">×${n}</span>` : ''}</b><small>${esc(b.desc)}</small></div></div>`;
           }).join('')}
         </div>
       </section>
@@ -242,7 +251,7 @@
         <div class="row"><p class="grow muted" style="font-size:.9rem">لستِ ${esc(session.studentName)}؟ أو انتهيتِ وتريد زميلتكِ استخدام الجهاز؟</p>
         <button class="btn ghost small" id="newSess">بدء جلسة لطالبة أخرى</button></div>
       </section>`;
-    app().querySelectorAll('[data-play]').forEach(b => b.onclick = () => { SFX.play('open'); ui.line = FX.line('start'); E.startStage(session, b.dataset.play, settings()); save(); go('play', b.dataset.play); });
+    app().querySelectorAll('[data-play]').forEach(b => b.onclick = () => { SFX.play('open'); ui.line = FX.stageLine(b.dataset.play); E.startStage(session, b.dataset.play, settings()); save(); go('play', b.dataset.play); });
     app().querySelectorAll('[data-res]').forEach(b => b.onclick = () => go('results', b.dataset.res));
     app().querySelectorAll('[data-mis]').forEach(b => b.onclick = () => go('mistakes', b.dataset.mis));
     app().querySelectorAll('[data-rev]').forEach(b => b.onclick = () => openReview(b.dataset.rev, null, 'sum'));
@@ -311,7 +320,7 @@
           </article>
         </div>
         <aside class="side">
-          <div class="panel mascot-box"><div class="mascot ${done ? 'jump' : 'bob'}">${FX.mascot(done ? 'cheer' : level === 'teach' ? 'think' : level ? 'think' : 'happy')}</div><p class="bubble" id="bubble">${esc(ui.line || FX.line('start'))}</p></div>
+          <div class="panel mascot-box"><div class="mascot ${done ? 'jump' : 'bob'}">${FX.mascot(done ? 'cheer' : level === 'hint1' ? 'encourage' : level ? 'think' : 'happy')}</div><p class="bubble" id="bubble">${esc(ui.line || FX.line('start'))}</p></div>
           <button class="reviewbtn" id="revBtn"><span class="ic">${I.book}</span><span><b>ملف الدرس | تعلّمي قبل أن تجيبي</b><small>ملخص ومصطلحات وأمثلة — لن تفقدي سؤالكِ</small></span></button>
           <div class="panel">
             <div class="row" style="justify-content:space-between"><b>تقدم المرحلة</b><span class="num">${answeredPct}%</span></div>
@@ -382,7 +391,7 @@
       ui.line = session.streak >= 3 ? FX.line('combo') : FX.line('correct');
     } else {
       session.streak = 0;
-      ui.line = res.support === 'teach' ? FX.line('teach') : FX.line('wrong');
+      ui.line = res.support === 'teach' ? FX.line('teach') : res.support === 'hint2' ? FX.line('hint') : FX.line('wrong');
     }
     save(); renderTop(); renderPlay();
     if (res.correct) {
@@ -419,7 +428,7 @@
     const pctBar = (v, cls) => `<div class="bar"><i class="${cls || ''}" style="width:${v}%"></i></div>`;
     app().innerHTML = `
       <section class="result-hero ${L.color}">
-        <div class="hero-mascots"><div class="big-badge">${I[MDQ.rules.BADGES[L.badge].icon]}</div><div class="mascot jump">${FX.mascot('cheer')}</div></div>
+        <div class="hero-mascots"><div class="big-badge">${FX.badge(L.badge)}</div><div class="mascot jump">${FX.mascot('cheer')}</div></div>
         <div>
           <p class="eyebrow" style="color:var(--gold)">اكتملت المرحلة</p>
           <h1>أنجزتِ «${esc(L.stage)}»</h1>
@@ -450,7 +459,7 @@
             : '<p>أجبتِ عن جميع الأسئلة من المحاولة الأولى. إتقان رائع!</p>'}
         </section>
         <section class="panel card"><h2>الشارات المكتسبة</h2>
-          <div class="shelf">${stageBadges.map(b => { const d = MDQ.rules.BADGES[b.id]; return `<div class="medal"><span class="disc">${I[d.icon]}</span><div><b>${esc(d.name)}</b><small>${esc(d.desc)}</small></div></div>`; }).join('') || '<p class="muted">—</p>'}</div>
+          <div class="shelf">${stageBadges.map(b => { const d = MDQ.rules.BADGES[b.id]; return `<div class="medal"><span class="disc">${FX.badge(b.id)}</span><div><b>${esc(d.name)}</b><small>${esc(d.desc)}</small></div></div>`; }).join('') || '<p class="muted">—</p>'}</div>
         </section>
       </div>
       <div class="actions" style="margin-top:20px">
@@ -591,7 +600,7 @@
     const d = MDQ.rules.BADGES[b.id];
     const t = document.createElement('div');
     t.className = 'toast'; t.setAttribute('role', 'status');
-    t.innerHTML = `<span class="disc">${I[d.icon]}</span><div><b>شارة جديدة: ${esc(d.name)}</b><div style="font-size:.85rem;opacity:.85">${esc(d.desc)}</div></div>`;
+    t.innerHTML = `<span class="disc">${FX.badge(b.id)}</span><div><b>شارة جديدة: ${esc(d.name)}</b><div style="font-size:.85rem;opacity:.85">${esc(d.desc)}</div></div>`;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2400);
   }

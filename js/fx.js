@@ -51,41 +51,34 @@
     toggle() { on = !on; try { localStorage.setItem('mdq.sound', on ? 'on' : 'off'); } catch (e) {} if (on) this.play('select'); return on; }
   };
 
-  /* ---------------- التميمة «نجمة» (شخصية أصلية) ---------------- */
+  /* ---------------- المرشدة: روبوت برأس فقط (صور WebP) ---------------- */
+  const GUIDE = { happy: 'welcome', welcome: 'welcome', cheer: 'cheer', wow: 'cheer', think: 'think', encourage: 'encourage' };
   function mascot(mood) {
-    mood = mood || 'happy';
-    const eyes = {
-      happy: '<ellipse cx="50" cy="56" rx="5.5" ry="7.5" fill="#2B2245"/><ellipse cx="70" cy="56" rx="5.5" ry="7.5" fill="#2B2245"/><circle cx="52" cy="53" r="2.4" fill="#fff"/><circle cx="72" cy="53" r="2.4" fill="#fff"/><circle cx="48.5" cy="59" r="1.2" fill="#fff"/><circle cx="68.5" cy="59" r="1.2" fill="#fff"/>',
-      cheer: '<path d="M44 57 q6 -9 12 0" stroke="#2B2245" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M64 57 q6 -9 12 0" stroke="#2B2245" stroke-width="3.2" fill="none" stroke-linecap="round"/>',
-      think: '<ellipse cx="50" cy="57" rx="5" ry="6.5" fill="#2B2245"/><ellipse cx="70" cy="57" rx="5" ry="6.5" fill="#2B2245"/><circle cx="51.5" cy="54.5" r="2" fill="#fff"/><circle cx="71.5" cy="54.5" r="2" fill="#fff"/><path d="M86 34 q4 7 0 11 q-4 -4 0 -11z" fill="#7FD4FF"/>',
-      wow: '<circle cx="50" cy="56" r="7" fill="#2B2245"/><circle cx="70" cy="56" r="7" fill="#2B2245"/><path d="M50 51 l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z" fill="#FFE27A"/><path d="M70 51 l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z" fill="#FFE27A"/>'
-    }[mood] || '';
-    const mouth = {
-      happy: '<path d="M54 67 q6 6 12 0" stroke="#2B2245" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
-      cheer: '<path d="M52 65 q8 11 16 0 z" fill="#E8457E" stroke="#2B2245" stroke-width="2"/>',
-      think: '<path d="M56 69 h8" stroke="#2B2245" stroke-width="2.6" stroke-linecap="round"/>',
-      wow: '<ellipse cx="60" cy="69" rx="4" ry="5" fill="#E8457E" stroke="#2B2245" stroke-width="2"/>'
-    }[mood];
-    return `<svg class="mascot-svg" viewBox="0 0 120 120" aria-hidden="true">
-      <defs><linearGradient id="mstar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE68A"/><stop offset="1" stop-color="#FFB547"/></linearGradient></defs>
-      <path d="M60 6 L74 40 L111 42 L82 65 L92 101 L60 81 L28 101 L38 65 L9 42 L46 40 Z" fill="url(#mstar)" stroke="#2B2245" stroke-width="3.5" stroke-linejoin="round"/>
-      <path d="M60 14 L70 39" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/>
-      ${eyes}
-      <ellipse cx="42" cy="67" rx="6" ry="3.6" fill="#FF8FB8" opacity=".75"/><ellipse cx="78" cy="67" rx="6" ry="3.6" fill="#FF8FB8" opacity=".75"/>
-      ${mouth}
-      <path d="M96 18 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#FF6FB5" class="twinkle"/>
-      <path d="M18 24 l1.5 3.5 3.5 1.5 -3.5 1.5 -1.5 3.5 -1.5 -3.5 -3.5 -1.5 3.5 -1.5z" fill="#7FD4FF" class="twinkle t2"/>
-    </svg>`;
+    const f = GUIDE[mood || 'happy'] || 'welcome';
+    return `<img class="mascot-img" src="img/guide-${f}.webp" alt="" width="520" height="520" decoding="async">`;
   }
+  /** شارة الإنجاز: الصورة باسم معرّف الشارة نفسه (badge-<id>.webp) */
+  function badge(id) {
+    return `<img class="badge-img" src="img/badge-${id}.webp" alt="" width="360" height="360" loading="lazy" decoding="async">`;
+  }
+  /** جملة المرشدة عند دخول كل بوابة */
+  const STAGE_LINES = {
+    cyber: 'بوابة الأمن السيبراني.. هيا نحمي عالمنا الرقمي!',
+    device: 'بوابة حماية الجهاز.. هيا ننقذ جهازنا!',
+    db: 'بوابة قواعد البيانات.. هيا نبني جداولنا!',
+    query: 'بوابة الاستعلام والتقارير.. هيا نكتشف الأسرار!'
+  };
+  const stageLine = lid => STAGE_LINES[lid] || STAGE_LINES.cyber;
 
   const LINES = {
-    welcome: ['أهلًا! أنا «نجمة»، رفيقتكِ في المغامرة ✨', 'جاهزة؟ أربع مراحل وشارات كثيرة بانتظاركِ!'],
-    start: ['لنبدأ! ركّزي واقرئي السؤال جيدًا 💪', 'أنا معكِ في كل سؤال!', 'كل سؤال خطوة نحو الإتقان!'],
-    correct: ['رائع! إجابة مذهلة! 🌟', 'أحسنتِ! أنتِ نجمة حقيقية!', 'يا سلام! استمري هكذا!', 'ممتاز! عقلكِ يلمع اليوم ✨', 'إجابة بطلة! 🏆'],
-    wrong: ['لا بأس! الخطأ أول خطوة للتعلّم 🌱', 'قريبة جدًا! اقرئي التلميح وحاولي ثانية', 'لا تستسلمي، أنا واثقة بكِ!', 'فكّري مرة أخرى، الإجابة قريبة 💡'],
-    teach: ['لنتعلّم معًا، افتحي ملف الدرس 📖', 'خذي نفسًا وراجعي الشرح، ستنجحين!'],
-    combo: ['سلسلة نارية! 🔥', 'لا يمكن إيقافكِ!', 'كومبو خارق! ⚡'],
-    done: ['أنجزتِ المرحلة! أنا فخورة بكِ 🎉', 'مرحلة مكتملة! بطلة المهارات الرقمية!']
+    welcome: ['أهلًا بكِ في مغامرة المهارات الرقمية! أي بوابة تريدين دخولها اليوم؟ هيا نكتشف!'],
+    start: ['لنبدأ! ركّزي واقرئي السؤال جيدًا.', 'أنا معكِ في كل سؤال!', 'كل سؤال خطوة نحو الإتقان!'],
+    correct: ['أحسنتِ! إجابة صحيحة، واصلي!', 'ممتاز! أنتِ تتقدمين!', 'رائع! نقطة جديدة لكِ!'],
+    wrong: ['لا بأس، المحاولة تعلّمنا. جرّبي مرة أخرى!', 'قريبة! فكّري قليلًا.', 'الأخطاء خطوات نحو الإتقان، هيا مجددًا!'],
+    hint: ['إليكِ تلميحًا صغيرًا، تأملي الكلمات المفتاحية.', 'تلميح جديد لكِ! اقرئي السؤال مرة أخرى بتمعّن.'],
+    teach: ['عودي للكتاب إن احتجتِ، فهو سندكِ.', 'لنتعلّم معًا، افتحي ملف الدرس.'],
+    combo: ['سلسلة نارية!', 'لا يمكن إيقافكِ!', 'كومبو خارق!'],
+    done: ['أحسنتِ! أكملتِ المرحلة وفتحتِ شارة جديدة!', 'مرحلة مكتملة! أنتِ بطلة المهارات الرقمية!']
   };
   const pick = k => { const a = LINES[k] || LINES.start; return a[Math.floor(Math.random() * a.length)]; };
 
@@ -137,5 +130,5 @@
 
   window.MDQ = window.MDQ || {};
   MDQ.sfx = sfx;
-  MDQ.fx = { mascot, line: pick, petals, floatText, burst };
+  MDQ.fx = { mascot, badge, stageLine, line: pick, petals, floatText, burst };
 })();

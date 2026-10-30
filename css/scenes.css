@@ -74,3 +74,8 @@ html[data-contrast="high"] body::before, html[data-contrast="high"] body::after 
   .stage .cover { height: 110px; }
 }
 .mascot-box .mascot { width: 92px; }
+
+/* تعريف التجربة في الصفحة الرئيسية */
+.about-exp { margin: 10px 0 12px; padding: 10px 14px; border-radius: 14px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35); text-align: start; }
+.about-exp b { display: block; color: var(--gold, #f5c451); margin-bottom: 4px; }
+.about-exp p { margin: 0; line-height: 1.8; }

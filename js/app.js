@@ -98,6 +98,7 @@
           <p class="eyebrow" style="color:var(--gold)">المهارات الرقمية — الصف الثالث المتوسط</p>
           <h1>مغامرة المهارات الرقمية<span>رحلة إتقان الدروس الأربعة</span></h1>
           <p class="lede">استعدي للمغامرة، أتقني المفاهيم، واجمعي شارات المعرفة.</p>
+          <div class="about-exp"><b>التقييم القائم على اللعب <span class="ltr">(Game-based Assessment)</span></b><p>سوف تخوضين تجربة تقييم معارفكِ في مادة المهارات الرقمية لوحدتي الأمن السيبراني وقواعد البيانات، عبر مراحل وتحديات ممتعة تجمعين فيها النقاط والشارات، وتتعرفين من خلالها على مستواكِ.</p></div>
           <div class="mascot-row"><div class="mascot bob">${FX.mascot('happy')}</div><p class="bubble">${FX.line('welcome')}</p></div>
           <form class="form" id="startForm" novalidate>
             <div class="field">

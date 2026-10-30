@@ -5,6 +5,12 @@
     const { esc, pill, T, I, B, model } = ctx;
     const PQ = MDQ.post.postQids(), goals = G.list().filter(x => PQ.includes(x.qid)), outcomes = MDQ.outcomes.ROWS.filter(r => r.qid && PQ.includes(r.qid)), classes = G.classes(model);
     const lessonName = id => (B.lesson(id) || {}).lesson || id;
+    const PWD = MDQ.postWording || {}, pw = qid => PWD[qid] || [];
+    const pwLine = qid => pw(qid).length ? `<small class="muted" style="display:block;margin-top:2px">صياغته في الاختبار البعدي: ${pw(qid).map(esc).join(' ‖ ')}</small>` : '';
+    const wordingTable = () => `<section class="panel card" style="margin-bottom:16px"><details><summary><h2 style="display:inline">أهداف الوكيل وصياغتها المعادة في الاختبار البعدي (${outcomes.length})</h2></summary>
+      <p class="muted small-print">لكل ناتج تعلّم: صياغة السؤال في الموقع (كما هي، دون تغيير) وصياغته بعد إعادة الكتابة في الاختبار البعدي. يعتمد الوكيل الصياغتين معًا في مطابقة أعمدة ملف النتائج، فيُحلَّل كل ناتج بسؤاله الصحيح.</p>
+      <div class="t-scroll" style="max-height:420px"><table class="t-table"><thead><tr><th>الدرس</th><th>الهدف (ناتج التعلم)</th><th>صياغته في الموقع</th><th>صياغته في الاختبار البعدي</th></tr></thead><tbody>
+      ${['db', 'query', 'device', 'cyber'].map(l => outcomes.filter(o => o.lesson === l).map(o => `<tr><td>${esc(lessonName(l))}</td><td>${esc(o.outcome)}${goals.some(x => x.qid === o.qid) ? ' <span class="pill ok">له هدف</span>' : ''}</td><td>${esc((B.question(o.qid) || {}).text || o.question || '')}</td><td>${pw(o.qid).map(esc).join('<hr style="margin:4px 0">') || '<span class="muted">—</span>'}</td></tr>`).join('')).join('')}</tbody></table></div></details></section>`;
     const statusCls = s => ({ 'تحقق الهدف': 'ok', 'تحسّن': 'ok', 'لم يتحسن': 'low', 'بيانات قليلة': 'mid' }[s] || 'na');
 
 
@@ -26,7 +32,7 @@
       if (!set) return h + `<p class="muted small-print">ارفعي الملف كما صدّرتِه من النموذج (Excel أو CSV). يبقى في متصفحكِ ولا يُرسل لأي جهة، ويبدأ التحليل فور رفعه.</p>
         <div class="row"><input type="file" accept=".xlsx,.csv" id="pFile"><button class="btn gold" id="pGo">ارفعي وحلّلي</button></div></section>`;
       const A = P.analyze(set, model, goals), t = A.tally;
-      h += `<p class="muted small-print">${esc(set.file)} · ${esc(T(set.at))} · ${t.rows} صفًا · ${set.items.length} ناتجًا مطابقًا${set.dups.length ? ' · سؤال مكرر في النموذج اعتمدتُ أوله فقط (' + esc(set.dups.join('، ')) + ')' : ''}${set.unmapped.length ? ' · أعمدة لم تُطابَق: ' + set.unmapped.length : ''}${t.empty ? ' · ' + t.empty + ' صف بلا اسم (تجاهلتُه)' : ''}</p>
+      h += `<p class="muted small-print">${esc(set.file)} · ${esc(T(set.at))} · ${t.rows} صفًا · ${set.items.length} ناتجًا مطابقًا${set.dups.length ? ' · سؤال مكرر في النموذج اعتمدتُ أوله فقط (' + esc(set.dups.join('، ')) + ')' : ''}${set.unmapped.length ? ' · أعمدة لم تُطابَق: ' + set.unmapped.length : ''}${(set.noPts || []).length ? ' · <b>أسئلة بلا عمود نقاط في الملف فلا تُحلَّل: ' + set.noPts.map(q => esc((outcomes.find(o => o.qid === q) || {}).outcome ? q + ' (' + (outcomes.find(o => o.qid === q).outcome.slice(0, 40)) + '…)' : q)).join('، ') + '</b>' : ''}${t.empty ? ' · ' + t.empty + ' صف بلا اسم (تجاهلتُه)' : ''}</p>
         <div class="kpis num"><div class="panel kpi"><b>${t.exact}</b><small>مطابقة تامة</small></div><div class="panel kpi"><b>${t.byTeacher}</b><small>أقرّتها المعلمة</small></div><div class="panel kpi"><b>${t.excluded}</b><small>مستبعدة</small></div><div class="panel kpi"><b>${t.pending}</b><small>بانتظار قراركِ</small></div></div>
         <div class="row" style="margin:8px 0"><label>المستهدف الافتراضي ٪ <input type="number" id="pTar" min="1" max="100" value="${set.target}" class="t-input" style="width:80px"></label><button class="btn ghost small" id="pTarGo">طبّقي</button><span class="muted small-print">للنواتج التي لا هدف مسجّل لها؛ أما التي لها هدف فيُستخدم هدفها (ومقياسها).</span></div>`;
       const asks = A.ms.filter(m => m.needs);
@@ -50,7 +56,7 @@
         ${view === 'goals' && !R.length ? '<p class="muted">لم تحدّدي أهدافًا بعد؛ حدّديها من «هدف جديد» أعلاه أو اعرضي كل النواتج.</p>' : ''}
         <div style="overflow-x:auto"><table class="t-table"><thead><tr><th>الهدف (ناتج التعلم)</th><th>الأساس</th><th>المتحقق</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th></tr></thead><tbody>
         ${Object.keys(lessonOrder).map(l => { const rs = R.filter(x => x.lesson === l); if (!rs.length) return ''; return `<tr><td colspan="6" style="background:var(--surface-2,#f7eef6)"><b>${esc(lessonOrder[l])}</b></td></tr>` + rs.map(x =>
-          `<tr><td>${esc(x.outcome)}${x.targeted ? ' <span class="pill ok">له هدف</span>' : ''}<br><span class="pill ${x.status === 'تحقق الهدف' || x.status === 'تحسّن' ? 'ok' : x.status === 'لم يتحسن' ? 'low' : 'mid'}">${esc(x.status)}</span></td>
+          `<tr><td>${esc(x.outcome)}${x.targeted ? ' <span class="pill ok">له هدف</span>' : ''}${pwLine(x.qid)}<br><span class="pill ${x.status === 'تحقق الهدف' || x.status === 'تحسّن' ? 'ok' : x.status === 'لم يتحسن' ? 'low' : 'mid'}">${esc(x.status)}</span></td>
             <td class="num">${x.base == null ? '—' : x.base + '٪'}</td><td class="num">${x.after == null ? '—' : x.after + '٪'}</td><td class="num">${x.target}٪</td>
             <td class="num">${x.n ? (x.gain >= 0 ? '+' : '') + x.gain + ' نقطة' + (x.ceil ? '' : ' · أثر ' + (x.roi == null ? '—' : x.roi + '٪') + (x.hake == null ? '' : ' · مكسب ' + x.hake + '٪')) + '<br><small class="muted">ن=' + x.n + ' · تحسّن ' + x.up + ' / تراجع ' + x.down + (x.p == null ? '' : ' · ف=' + (x.p < 0.001 ? '<0.001' : x.p.toFixed(3))) + '</small>' : '—'}</td>
             <td><ul style="margin:0;padding-inline-start:16px">${x.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></td></tr>`).join(''); }).join('')}</tbody></table></div>`;
@@ -142,6 +148,7 @@
       const lastC = (g.cycles || []).slice(-1)[0];
       return `<section class="panel card" data-g="${esc(g.id)}" style="margin-bottom:16px">
         <div class="row"><h2 class="grow">${esc(g.outcome)}</h2><span class="pill ${statusCls(ev.status)}">${esc(g.paused ? 'متوقف' : ev.status)}</span></div>
+        ${pwLine(g.qid)}
         <p class="muted small-print">${esc(lessonName(B.question(g.qid).lesson))} · ${esc(g.cls || 'كل الفصول')} · ${g.metric === 'first' ? 'التحقق من الأولى' : 'التحقق حتى الثالثة'} · ${g.due ? 'حتى ' + esc(g.due) : 'بلا موعد'}${g.note ? ' · ' + esc(g.note) : ''}</p>
         <div class="kpis num"><div class="panel kpi"><b>${g.baseline.pct}٪</b><small>عند بدء الهدف (ن=${g.baseline.n})</small></div>
           <div class="panel kpi"><b>${ev.cur == null ? '—' : ev.cur + '٪'}</b><small>الآن (ن=${ev.n})</small></div>
@@ -180,7 +187,7 @@
         <div class="filters" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
           <div style="flex:1 1 100%"><b>نواتج التعلم المرتبطة بالاختبار البعدي (${outcomes.length})</b>
             <label style="margin-inline-start:14px"><input type="checkbox" id="gAll"> تحديد كل الأهداف</label>
-            ${['db', 'query', 'device', 'cyber'].map(l => { const os = outcomes.filter(o => o.lesson === l); return os.length ? `<details open style="margin:4px 0"><summary class="muted small-print">${esc(lessonName(l))} (${os.length})</summary>${os.map(o => `<label style="display:block;margin:2px 0"><input type="checkbox" data-go value="${esc(o.qid)}" ${goals.some(x => x.qid === o.qid) ? 'disabled checked' : ''}> ${esc(o.outcome.slice(0, 110))}${goals.some(x => x.qid === o.qid) ? ' <span class="pill ok">له هدف</span>' : ''}</label>`).join('')}</details>` : ''; }).join('')}</div>
+            ${['db', 'query', 'device', 'cyber'].map(l => { const os = outcomes.filter(o => o.lesson === l); return os.length ? `<details open style="margin:4px 0"><summary class="muted small-print">${esc(lessonName(l))} (${os.length})</summary>${os.map(o => `<label style="display:block;margin:2px 0"><input type="checkbox" data-go value="${esc(o.qid)}" ${goals.some(x => x.qid === o.qid) ? 'disabled checked' : ''}> ${esc(o.outcome.slice(0, 110))}${goals.some(x => x.qid === o.qid) ? ' <span class="pill ok">له هدف</span>' : ''}</label>${pwLine(o.qid)}`).join('')}</details>` : ''; }).join('')}</div>
           <label>الفصل<select id="gCls" class="t-input"><option value="">كل الفصول</option>${classes.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>
           <label>المقياس<select id="gMet" class="t-input"><option value="first">التحقق من الأولى</option><option value="by3">التحقق حتى الثالثة</option></select></label>
           <label>المستهدف ٪<input id="gTar" type="number" min="1" max="100" value="80" class="t-input" style="width:80px"></label>
@@ -188,6 +195,7 @@
           <label style="flex:1;min-width:160px">ملاحظة<input id="gNote" class="t-input" placeholder="اختياري"></label>
           <button class="btn gold" id="gGo">ابدئي الأهداف المحددة</button></div>
         <p class="muted small-print">يحسب الوكيل خط الأساس الآن من بياناتكِ، ثم يشخّص ويقترح. بعد تنفيذ الخطوة وإعادة استيراد الردود اضغطي «راجعي» ليقيّم الأثر ويعدّل مساره.</p></section>
+      ${wordingTable()}
       ${postAuto()}
       ${goals.some(x => x.post) ? `<section class="panel card" style="margin-bottom:16px"><h2>ملخص أثر الأهداف (بعد الاختبار البعدي)</h2>${resTable(goals.filter(x => x.post).map(x => MDQ.post.row(x, model)))}<div class="row" style="margin-top:8px"><button class="btn gold small" id="gSum">${I.download} تنزيل الجدول (CSV)</button></div></section>` : ''}
       ${goals.length ? goals.map(x => `<details style="margin-bottom:12px" ${goals.length <= 3 ? 'open' : ''}><summary class="panel card" style="cursor:pointer;padding:12px"><b>${esc(x.outcome.slice(0, 100))}</b> <span class="pill ${statusCls(G.evaluate(x, model).status)}">${esc(x.paused ? 'متوقف' : G.evaluate(x, model).status)}</span></summary>${goalCard(x)}</details>`).join('') : '<div class="panel" style="padding:20px"><p class="muted">لا أهداف بعد. حدّدي هدفًا ليبدأ الوكيل.</p></div>'}

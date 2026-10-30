@@ -262,15 +262,18 @@
     if (nameCol < 0) throw new Error('لم أجد عمود «اسم الطالبة» في الملف.');
     const isPts = h => /^النقاط\s*-/.test(h), isNote = h => /^الملاحظات\s*-/.test(h);
     const ptsQ = {}; H.forEach((h, i) => { if (isPts(h)) { const k = normAr(h.replace(/^النقاط\s*-\s*/, '')); (ptsQ[k] = ptsQ[k] || []).push(i); } });
-    const used = {}, items = [], unmapped = [], dups = [], bank = MDQ.bank.QUESTIONS, seenQ = new Set();
+    const used = {}, items = [], unmapped = [], noPts = [], dups = [], bank = MDQ.bank.QUESTIONS, seenQ = new Set();
     H.forEach((h, i) => {
       if (!h || i === nameCol || i === clsCol || isPts(h) || isNote(h) || /^إجمالي/.test(h)) return;
       const k = normAr(h), q = (used[k] = (used[k] || 0) + 1) - 1, pc = (ptsQ[k] || [])[q];
-      if (pc == null) return;                                   // عمود ليس سؤالًا مُصحَّحًا
-      let best = null, bs = 0; bank.forEach(b => { const sc = textSim(h, b.text); if (sc > bs) { bs = sc; best = b; } });
+      let best = null, bs = 0, via = 'original';
+      bank.forEach(b => { const sc = textSim(h, b.text); if (sc > bs) { bs = sc; best = b; via = 'original'; } });
+      const PW = MDQ.postWording || {};   // الصياغة المعادة في الاختبار البعدي
+      Object.keys(PW).forEach(qid => PW[qid].forEach(w => { const sc = textSim(h, w); if (sc > bs) { bs = sc; best = bank.find(b => b.id === qid) || best; via = 'reworded'; } }));
+      if (pc == null) { if (best && bs >= 0.85) noPts.push(best.id); return; }   // سؤال في الملف بلا عمود نقاط: لا يمكن تصحيحه
       if (!best || bs < 0.85) { unmapped.push(h.slice(0, 60)); return; }
       if (seenQ.has(best.id)) { dups.push(best.id); return; }  // سؤال مكرر في النموذج: يُعتمد الأول فقط
-      seenQ.add(best.id); items.push({ qid: best.id, header: h.slice(0, 80), ptsCol: pc, score: Math.round(bs * 100) });
+      seenQ.add(best.id); items.push({ qid: best.id, header: h.slice(0, 80), ptsCol: pc, score: Math.round(bs * 100), via });
     });
     if (!items.length) throw new Error('لم أطابق أي سؤال في الملف مع أسئلة الموقع. تأكدي أنه ملف نتائج النموذج المُصدَّر.');
     const max = {}; items.forEach(it => { max[it.qid] = Math.max(1, ...table.slice(1).map(r => parseFloat(String(r[it.ptsCol] || '0').replace('٫', '.')) || 0)); });
@@ -278,8 +281,8 @@
       const pts = {}; items.forEach(it => { const raw = String(r[it.ptsCol] == null ? '' : r[it.ptsCol]).trim(); const v = parseFloat(raw.replace('٫', '.')); pts[it.qid] = raw === '' || isNaN(v) ? null : (v >= max[it.qid] ? 1 : 0); });
       return { key: 'r' + (i + 2), name: String(r[nameCol] == null ? '' : r[nameCol]).replace(/ /g, ' ').trim(), cls: clsCol >= 0 ? String(r[clsCol] || '').trim() : '', pts };
     });
-    const set = { file, at: new Date().toISOString(), target: 80, decisions: {}, items, rows, unmapped, dups };
-    putSet(set); G().logEvent('post', 'رُفع ملف الاختبار البعدي', `${file} · ${rows.length} صفًا · ${items.length} ناتجًا مطابقًا` + (dups.length ? ` · سؤال مكرر تجاهلتُ تكراره (${dups.join('، ')})` : ''));
+    const set = { file, at: new Date().toISOString(), target: 80, decisions: {}, items, rows, unmapped, dups, noPts };
+    putSet(set); G().logEvent('post', 'رُفع ملف الاختبار البعدي', `${file} · ${rows.length} صفًا · ${items.length} ناتجًا مطابقًا (${items.filter(i => i.via === 'reworded').length} بالصياغة المعادة)` + (dups.length ? ` · سؤال مكرر تجاهلتُ تكراره (${dups.join('، ')})` : ''));
     return set;
   }
 

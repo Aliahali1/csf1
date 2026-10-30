@@ -20,6 +20,11 @@
 
     /* ---- تحليل الاختبار البعدي (رفع واحد) ---- */
     const lessonOrder = { db: 'إنشاء قاعدة البيانات', query: 'الاستعلام والتقارير', device: 'حماية جهاز الحاسب', cyber: 'مقدمة في الأمن السيبراني' };
+    const decCell = x => { const S = MDQ.std, d = S.getDecision(x.qid), e = S.getEquiv(x.qid);
+      const eq = x.reworded ? `<label class="small-print">تكافؤ الصياغتين<select class="t-input" data-eq="${esc(x.qid)}"><option value="">— لم تُراجَع —</option>${Object.keys(S.LEVELS).map(k => `<option value="${k}" ${e && e.level === k ? 'selected' : ''}>${esc(S.LEVELS[k])}</option>`).join('')}</select></label>${x.counted ? '' : '<br><span class="pill low">خارج الخلاصة</span>'}` : '';
+      const dc = `<label class="small-print">قراركِ على التوصية<select class="t-input" data-dec="${esc(x.qid)}"><option value="">— لم تقرري —</option>${Object.keys(S.DEC).map(k => `<option value="${k}" ${d && d.d === k ? 'selected' : ''}>${esc(S.DEC[k])}</option>`).join('')}</select></label>`;
+      const why = `<details><summary class="small-print">لماذا هذه النتيجة؟</summary><ul class="small-print" style="margin:4px 0;padding-inline-start:16px"><li>المصدر: ملف «${esc((MDQ.post.getSet() || {}).file || '')}» ؛ ن=${x.n} طالبة قُبلت مطابقة أسمائهن ولهن محاولة في الموقع ودرجة في البعدي.</li><li>الأساس = نسبة من تحققت من المحاولة الأولى في الموقع (${x.base == null ? '—' : x.base + '٪'}) ؛ المتحقق = نسبة من نالت نقطة السؤال في البعدي (${x.after == null ? '—' : x.after + '٪'}).</li><li>الصياغة: ${x.reworded ? 'معادة في البعدي (تكافؤ: ' + esc(e ? S.LEVELS[e.level] : 'لم يُقرَّر') + ')' : 'مطابقة لصياغة الموقع'}.</li><li>القواعد: سقف الأساس ≥ ${MDQ.post.CEIL}٪ يُعلَّم «سقف»؛ دلالة ماكنمار الدقيقة؛ العتبات إرشادية غير مُعايَرة.</li></ul></details>`;
+      return eq + (eq ? '<br>' : '') + dc + why; };
     const postAuto = () => {
       const P = MDQ.post, set = P.getSet();
       let h = `<section class="panel card" id="pAuto" style="margin-bottom:16px"><h2>تحليل الاختبار البعدي (ارفعي الملف مرة واحدة)</h2>
@@ -54,18 +59,20 @@
       const view = MDQ.post._view || (goals.length ? 'goals' : 'all'), R = view === 'goals' ? A.rows.filter(x => x.targeted) : A.rows;
       h += `<div class="row" style="margin:12px 0 4px"><h3 class="grow" style="margin:0">نتائج الأثر (${R.length} ناتجًا · ${A.accepted} طالبة مقبولة)</h3><label>عرض<select id="pView" class="t-input"><option value="goals" ${view === 'goals' ? 'selected' : ''}>أهدافي المحددة (${A.rows.filter(x => x.targeted).length})</option><option value="all" ${view === 'all' ? 'selected' : ''}>كل نواتج الاختبار (${A.rows.length})</option></select></label></div>
         ${view === 'goals' && !R.length ? '<p class="muted">لم تحدّدي أهدافًا بعد؛ حدّديها من «هدف جديد» أعلاه أو اعرضي كل النواتج.</p>' : ''}
-        <div style="overflow-x:auto"><table class="t-table"><thead><tr><th>الهدف (ناتج التعلم)</th><th>الأساس</th><th>المتحقق</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th></tr></thead><tbody>
+        <div style="overflow-x:auto"><table class="t-table"><thead><tr><th>الهدف (ناتج التعلم)</th><th>الأساس</th><th>المتحقق</th><th>المستهدف</th><th>الأثر</th><th>التوصيات</th><th>قراركِ وأساس النتيجة</th></tr></thead><tbody>
         ${Object.keys(lessonOrder).map(l => { const rs = R.filter(x => x.lesson === l); if (!rs.length) return ''; return `<tr><td colspan="6" style="background:var(--surface-2,#f7eef6)"><b>${esc(lessonOrder[l])}</b></td></tr>` + rs.map(x =>
           `<tr><td>${esc(x.outcome)}${x.targeted ? ' <span class="pill ok">له هدف</span>' : ''}${pwLine(x.qid)}<br><span class="pill ${x.status === 'تحقق الهدف' || x.status === 'تحسّن' ? 'ok' : x.status === 'لم يتحسن' ? 'low' : 'mid'}">${esc(x.status)}</span></td>
             <td class="num">${x.base == null ? '—' : x.base + '٪'}</td><td class="num">${x.after == null ? '—' : x.after + '٪'}</td><td class="num">${x.target}٪</td>
             <td class="num">${x.n ? (x.gain >= 0 ? '+' : '') + x.gain + ' نقطة' + (x.ceil ? '' : ' · أثر ' + (x.roi == null ? '—' : x.roi + '٪') + (x.hake == null ? '' : ' · مكسب ' + x.hake + '٪')) + '<br><small class="muted">ن=' + x.n + ' · تحسّن ' + x.up + ' / تراجع ' + x.down + (x.p == null ? '' : ' · ف=' + (x.p < 0.001 ? '<0.001' : x.p.toFixed(3))) + '</small>' : '—'}</td>
-            <td><ul style="margin:0;padding-inline-start:16px">${x.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></td></tr>`).join(''); }).join('')}</tbody></table></div>`;
+            <td><ul style="margin:0;padding-inline-start:16px">${x.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></td><td>${decCell(x)}</td></tr>`).join(''); }).join('')}</tbody></table></div>`;
       if (A.did) h += `<div class="banner info" style="margin:8px 0"><div><b>مقارنة داخلية (مجموعة ضابطة بديلة):</b> متوسط تحسّن النواتج التي نفّذتِ عليها تدخلًا = <b>${A.did.t >= 0 ? '+' : ''}${A.did.t}</b> نقطة (${A.did.nt} نواتج)، مقابل <b>${A.did.c >= 0 ? '+' : ''}${A.did.c}</b> للنواتج الأخرى لنفس الطالبات (${A.did.nc} نواتج)؛ الفرق <b>${A.did.diff >= 0 ? '+' : ''}${A.did.diff}</b>. هذا أقرب لأثر التدخل لأن أثر التذكر يمس النوعين معًا.</div></div>`;
       else h += `<p class="muted small-print">المقارنة الداخلية (نواتج التدخل مقابل غيرها) تظهر حين يكون لديكِ هدف مسجّل لناتج واحد على الأقل وثلاثة نواتج أخرى دون السقف.</p>`;
-      const okN = A.rows.filter(x => x.n >= 8 && x.after >= x.target).length, mN = A.rows.filter(x => x.n >= 8).length;
+      const okN = A.rows.filter(x => x.counted && x.n >= 8 && x.after >= x.target).length, mN = A.rows.filter(x => x.counted && x.n >= 8).length;
+      if (A.notCounted) h += `<div class="banner bad" style="margin:8px 0"><div><b>${A.notCounted} ناتجًا خارج الخلاصة:</b> صياغته في الاختبار البعدي معادة ولم تقرري تكافؤها (أو قرّرتِ أنها تختلف جوهريًا). حدّدي «تكافؤ الصياغتين» في عمود قراركِ لإدخاله؛ هذا حكمكِ التربوي ولا يتخذه الوكيل.</div></div>`;
+      if (A.byClass && A.byClass.length > 1) h += `<details style="margin:8px 0"><summary class="small-print"><b>مقارنة الفصول (للإنصاف)</b></summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الفصل</th><th>طالبات</th><th>الأساس</th><th>المتحقق</th><th>الفرق</th></tr></thead><tbody>${A.byClass.map(c => `<tr><td>${esc(c.cls)}</td><td class="num">${c.students}</td><td class="num">${c.base}٪</td><td class="num">${c.after}٪</td><td class="num">${c.gain >= 0 ? '+' : ''}${c.gain}</td></tr>`).join('')}</tbody></table></div><p class="small-print muted">متوسط عبر النواتج المحتسَبة. فرق كبير بين الفصول قد يعود إلى اختلاف التدريس أو العدد القليل لا إلى الطالبات؛ فسّريه قبل أي إجراء.</p></details>`;
       h += `<div class="banner ok" style="margin:8px 0"><div><b>تحقق النواتج بعد التدريس:</b> بلغ ${okN} من ${mN} ناتجًا (ذوات العدد الكافي) المستهدف في الاختبار البعدي. هذا دليل على <b>تحقق الناتج بعد الشرح في الحصة</b>، وهو غير «الأثر»: الأثر يحتاج قياسًا قبل التدريس أيضًا. نتائج الموقع أُخذت بعد الشرح، فلا تُعدّ أساسًا قبل التعلم.</div></div>
         <div class="banner info" style="margin:8px 0"><div><b>تنبيه قراءة:</b> الاختبار البعدي بنفس أسئلة الموقع، فجزء من التحسّن قد يكون تذكّرًا للإجابة لا تعلّمًا؛ والمقارنة وصفية ولا تثبت أن التدخل وحده هو السبب. النواتج المتحققة قبليًا لا تُظهر تحسّنًا بحكم السقف.</div></div>
-        <h3 style="margin:10px 0 4px">طالبات لم يتحققن (حدّدي ثم نفّذي)</h3>
+        <h3 style="margin:10px 0 4px">طالبات يُقترح دعمهن في هذا الناتج (حدّدي ثم نفّذي)</h3>
         <div class="row"><label>الناتج<select class="t-input" id="pOut">${R.filter(x => x.fail.length).map(x => `<option value="${esc(x.qid)}">${esc(x.outcome.slice(0, 70))} (${x.fail.length})</option>`).join('') || '<option value="">لا طالبات</option>'}</select></label>
           <label><input type="checkbox" id="pAllF"> تحديد الكل</label><button class="btn small" data-xa="copy">انسخي الأسماء</button><button class="btn small" data-xa="csv">قائمة CSV</button><button class="btn small" data-xa="print">قائمة دعم (Word)</button></div>
         <div id="pFail" class="t-scroll" style="max-height:220px"></div>
@@ -181,6 +188,11 @@
       </section>`;
     };
 
+    if (MDQ.std.stopped()) {
+      body.innerHTML = `<section class="panel card"><div class="banner bad"><div><b>الوكيل موقوف.</b> لا يحلّل ولا يقترح ولا ينفّذ شيئًا حتى تستأنفيه. بياناتكِ محفوظة كما هي.</div></div><div class="row" style="margin-top:8px"><button class="btn gold" id="stdResume">استئناف الوكيل</button></div></section>${MDQ.std.cardHTML(esc)}`;
+      body.querySelector('#stdResume').onclick = () => { MDQ.std.resume(); ctx.render(); };
+      return;
+    }
     body.innerHTML = `
       <div class="banner info" style="margin-bottom:14px"><div><b>تفويض الوكيل (استقلالية 1).</b> يقرأ ردود الطالبات التي استوردتِها، ويحلّل ويشخّص ويقترح ويسأل. <b>لا</b> يرسل شيئًا للطالبات أو لأي خدمة خارجية، ولا يعدّل الأسئلة أو الدروس أو البيانات، ولا يقرر درجات. كل مادة دعم مسودة حتى تعتمديها. يُخزَّن عمله في هذا المتصفح فقط. محرّكه قواعد ثابتة معلنة وعتباتها إرشادية غير مُعايَرة.</div></div>
       <section class="panel card" style="margin-bottom:16px"><h2>هدف جديد</h2>
@@ -195,6 +207,8 @@
           <label style="flex:1;min-width:160px">ملاحظة<input id="gNote" class="t-input" placeholder="اختياري"></label>
           <button class="btn gold" id="gGo">ابدئي الأهداف المحددة</button></div>
         <p class="muted small-print">يحسب الوكيل خط الأساس الآن من بياناتكِ، ثم يشخّص ويقترح. بعد تنفيذ الخطوة وإعادة استيراد الردود اضغطي «راجعي» ليقيّم الأثر ويعدّل مساره.</p></section>
+      <section class="panel card" style="margin-bottom:16px"><div class="row"><b class="grow">وكيل الأهداف · استقلالية الدرجة الأولى (يقترح فقط) · أثره متوسط</b><button class="btn ghost small" id="stdStop">⏹ إيقاف الوكيل فورًا</button><button class="btn ghost small" id="stdWipe">مسح بيانات الوكيل من هذا المتصفح</button></div></section>
+      ${MDQ.std.cardHTML(esc)}
       ${wordingTable()}
       ${postAuto()}
       ${goals.some(x => x.post) ? `<section class="panel card" style="margin-bottom:16px"><h2>ملخص أثر الأهداف (بعد الاختبار البعدي)</h2>${resTable(goals.filter(x => x.post).map(x => MDQ.post.row(x, model)))}<div class="row" style="margin-top:8px"><button class="btn gold small" id="gSum">${I.download} تنزيل الجدول (CSV)</button></div></section>` : ''}
@@ -354,5 +368,20 @@
       await MDQ.saveFile('سجل_وكيل_الأهداف.csv', new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     };
   }
-  MDQ.goals.view = view;
+  /* معالجات المعايير: تُربط بعد كل عرض عبر تفويض الأحداث على الجسم */
+  const _view = view;
+  MDQ.goals.view = function (body, ctx) {
+    _view(body, ctx);
+    if (body._stdBound) return; body._stdBound = true;
+    body.addEventListener('change', e => {
+      const t = e.target; if (!t || !t.dataset) return; const set = MDQ.post.getSet();
+      if (t.dataset.eq !== undefined) { MDQ.std.setEquiv(t.dataset.eq, t.value, ''); ctx.render(); }
+      else if (t.dataset.dec !== undefined) { MDQ.std.setDecision(t.dataset.dec, t.value, set); ctx.render(); }
+    });
+    body.addEventListener('click', e => {
+      const b = e.target && e.target.closest ? e.target.closest('#stdStop,#stdWipe') : null; if (!b) return;
+      if (b.id === 'stdStop') { MDQ.std.stop('أوقفته المعلمة'); ctx.render(); }
+      else if (confirm('سيُحذف من هذا المتصفح: الأهداف والسجل والمواد وملف نتائج الاختبار البعدي وقراراتكِ. لا يمكن التراجع. المتابعة؟')) { MDQ.std.wipe(); ctx.render(); }
+    });
+  };
 })();

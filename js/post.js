@@ -201,7 +201,7 @@
     if (r.after >= goal.target) out.push(`تحقق المستهدف (${r.after}٪ من ${goal.target}٪): ثبّتي ما نفّذتِه ووثّقيه، وانتقلي لناتج آخر.`);
     else if (r.gain >= 5) out.push(`تحسّن بمقدار ${r.gain} نقطة وبقيت فجوة ${goal.target - r.after} نقطة: كرّري الخطوة نفسها على من لم تتحقق ثم أعيدي القياس.`);
     else out.push('لم يظهر تحسّن كافٍ: غيّري أسلوب المعالجة (جرّبي سببًا آخر من أسباب «وكيل الأهداف») بدل تكرار الخطوة نفسها.');
-    if (low) out.push(`${low} طالبة لم تتحقق في الموقع ولا في البعدي: خصّيهن بدعم فردي أو مجموعة صغيرة.`);
+    if (low) out.push(`${low} طالبة لم تتحققن في الموقع ولا في البعدي في هذا الناتج: يُقترح دعمهن فرديًا أو في مجموعة صغيرة، وهذا وصف لهذا الناتج فقط لا حكمٌ عامٌّ عليهن.`);
     if (r.down) out.push(`${r.down} طالبة تراجعت بعد تحققها سابقًا: راجعي ثبات التعلم (قد تكون صدفة في الموقع أو ضعف مراجعة).`);
     if (r.noBase) out.push(`${r.noBase} طالبة بلا محاولات في الموقع على هذا السؤال: لا أساس لمقارنتها؛ اجعليهن يحللن السؤال في الموقع لتُقاس بدقة لاحقًا.`);
     if (r.noPost) out.push(`${r.noPost} طالبة بلا درجة مفهومة في الملف: تحققي من خلاياهن.`);
@@ -281,7 +281,7 @@
       const pts = {}; items.forEach(it => { const raw = String(r[it.ptsCol] == null ? '' : r[it.ptsCol]).trim(); const v = parseFloat(raw.replace('٫', '.')); pts[it.qid] = raw === '' || isNaN(v) ? null : (v >= max[it.qid] ? 1 : 0); });
       return { key: 'r' + (i + 2), name: String(r[nameCol] == null ? '' : r[nameCol]).replace(/ /g, ' ').trim(), cls: clsCol >= 0 ? String(r[clsCol] || '').trim() : '', pts };
     });
-    const set = { file, at: new Date().toISOString(), target: 80, decisions: {}, items, rows, unmapped, dups, noPts };
+    const set = { file, at: new Date().toISOString(), target: 80, decisions: {}, items, rows, unmapped, dups, noPts, wordingVersion: MDQ.postWordingVersion || '', wordingHash: MDQ.std ? MDQ.std.wordingHash() : '' };
     putSet(set); G().logEvent('post', 'رُفع ملف الاختبار البعدي', `${file} · ${rows.length} صفًا · ${items.length} ناتجًا مطابقًا (${items.filter(i => i.via === 'reworded').length} بالصياغة المعادة)` + (dups.length ? ` · سؤال مكرر تجاهلتُ تكراره (${dups.join('، ')})` : ''));
     return set;
   }
@@ -312,6 +312,7 @@
       const roi = n && base < target ? Math.round((after - base) / (target - base) * 100) : null, hake = n && base < 100 ? Math.round((after - base) / (100 - base) * 100) : null;
       const fail = per.filter(x => !x.post);
       const r = { qid: it.qid, lesson: orow.lesson, outcome: orow.outcome, targeted: !!g, n, base, after, target, gain, roi, hake, up, down, ceil, p: n ? hasMcNemar(up, down) : null, fail, stay: per.filter(x => !x.base && !x.post), per };
+      const S = MDQ.std; r.via = it.via || 'original'; r.reworded = r.via === 'reworded'; r.equiv = S ? (S.getEquiv(it.qid) || {}).level || null : null; r.counted = S ? S.counted(it.qid, r.via) : true;
       r.status = !n ? 'لا بيانات مقارَنة' : n < 8 ? 'عدد قليل' : ceil ? 'سقف: متحقق أصلًا' : after >= target ? 'تحقق الهدف' : gain >= 5 ? 'تحسّن' : 'لم يتحسن';
       r.recs = recsFor(r);
       out.push(r);
@@ -319,20 +320,23 @@
     const order = { db: 0, query: 1, device: 2, cyber: 3 };
     out.sort((a, b) => (order[a.lesson] - order[b.lesson]) || a.qid.localeCompare(b.qid));
     // مجموعة ضابطة داخلية: تحسّن نواتج التدخل (لها هدف) مقابل غيرها لنفس الطالبات (دون السقف)
-    const ok = out.filter(x => x.n >= 8 && !x.ceil), t = ok.filter(x => x.targeted), c = ok.filter(x => !x.targeted);
+    const ok = out.filter(x => x.n >= 8 && !x.ceil && x.counted), t = ok.filter(x => x.targeted), c = ok.filter(x => !x.targeted);
     const mean = a => a.reduce((s, x) => s + x.gain, 0) / a.length;
     const did = t.length && c.length >= 3 ? { t: Math.round(mean(t)), c: Math.round(mean(c)), diff: Math.round(mean(t) - mean(c)), nt: t.length, nc: c.length } : null;
-    return { ms, tally, rows: out, did, accepted: accepted.length };
+    const cls = MDQ.std ? MDQ.std.byClass(model, [].concat(...out.filter(x => x.counted && x.n >= 8 && !x.ceil).map(x => x.per))) : [];
+    return { ms, tally, rows: out, did, accepted: accepted.length, byClass: cls, notCounted: out.filter(x => !x.counted).length };
   }
   function recsFor(r) {
     if (!r.n) return ['لا طالبات مقارَنات لهذا الناتج (لا أساس في الموقع أو لا درجة).'];
+    if (r.reworded && !r.counted) return ['صياغة السؤال في البعدي معادة ولم تُراجَع/تُعتمد: قرّري تكافؤ الصياغتين أولًا؛ لا يُحتسب هذا الناتج في الخلاصة قبل ذلك.'];
     if (r.ceil) return ['متحقق قبليًا (≥' + CEIL + '٪): لا يُحكم عليه بأثر؛ يكفي الحفاظ عليه ولا يحتاج تدخلًا.'];
     const o = [];
+    if (r.reworded) o.push('تنبيه: الأساس بصياغة الموقع والبعدي بصياغة معادة' + (r.equiv === 'minor' ? ' (تختلف قليلًا)' : '') + '؛ قد يعكس الفرق جزئيًا اختلاف الصياغة لا التعلّم.');
     if (r.n < 8) o.push('عدد المقارَنات قليل؛ لا تعتمدي النتيجة.');
     if (r.after >= r.target) o.push('بلغ المستهدف: ثبّتي الأسلوب ووثّقيه.');
     else if (r.gain >= 5) o.push(`تحسّن ${r.gain} نقطة وبقيت فجوة ${r.target - r.after}: كرّري التدخل على غير المتحققات.`);
     else o.push('لا تحسن كافٍ: غيّري أسلوب المعالجة (سبب آخر من وكيل الأهداف) بدل التكرار.');
-    if (r.fail.length) o.push(`${r.fail.length} طالبة لم تتحقق: دعم فردي/مجموعة صغيرة.`);
+    if (r.fail.length) o.push(`${r.fail.length} طالبة تحتاج دعمًا في هذا الناتج (اقتراح قابل للمراجعة): دعم فردي أو مجموعة صغيرة.`);
     if (r.down) o.push(`${r.down} تراجعت: راجعي ثبات التعلم.`);
     if (r.n >= 8 && r.p != null && r.p > 0.05 && r.gain >= 5) o.push('الفرق غير دالّ إحصائيًا (قد يكون صدفة).');
     return o;

@@ -30,6 +30,12 @@
         <div class="kpis num"><div class="panel kpi"><b>${t.exact}</b><small>مطابقة تامة</small></div><div class="panel kpi"><b>${t.byTeacher}</b><small>أقرّتها المعلمة</small></div><div class="panel kpi"><b>${t.excluded}</b><small>مستبعدة</small></div><div class="panel kpi"><b>${t.pending}</b><small>بانتظار قراركِ</small></div></div>
         <div class="row" style="margin:8px 0"><label>المستهدف الافتراضي ٪ <input type="number" id="pTar" min="1" max="100" value="${set.target}" class="t-input" style="width:80px"></label><button class="btn ghost small" id="pTarGo">طبّقي</button><span class="muted small-print">للنواتج التي لا هدف مسجّل لها؛ أما التي لها هدف فيُستخدم هدفها (ومقياسها).</span></div>`;
       const asks = A.ms.filter(m => m.needs);
+      if (!A.accepted) {
+        const why = t.empty === t.rows
+          ? `الملف فيه ${t.rows} ${t.rows === 1 ? 'صف' : 'صفوف'} وكلها <b>بلا اسم طالبة</b>، فلا توجد طالبة يمكن مقارنة نتيجتها بنتيجتها في الموقع. هذا يحدث غالبًا إذا كان الملف يضم محاولتكِ التجريبية للنموذج فقط، أو لم يُجب الطالبات بعد، أو لا يطلب النموذج الاسم. صدّري ملف الردود من النموذج بعد أن تجيب الطالبات، وتأكدي أن عمود «اسم الطالبة» معبّأ، ثم احذفي هذا الملف وارفعي الجديد.`
+          : asks.length ? `لم تُقبل أي طالبة بعد: كل الأسماء بانتظار قراركِ أدناه.` : `لم تُقبل أي طالبة: الأسماء في الملف لا تطابق طالبات الموقع. تأكدي من تحميل بيانات الموقع (سجل المحاولات) في لوحة المعلمة قبل رفع الملف، وأن الأسماء مكتوبة كما سجّلتها الطالبات.`;
+        h += `<div class="banner bad" style="margin:8px 0"><div><b>لا توجد نتائج للتحليل:</b> ${why}</div></div>`;
+      }
       if (asks.length) {
         const all = model.students.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
         h += `<div class="banner bad" style="margin:8px 0"><div><b>توقفتُ وأحتاج قراركِ:</b> هذه الأسماء ليست مطابقة تامة لطالبات الموقع (أو مكررة). لن تدخل في التحليل حتى تقرّري، والتحليل أدناه يخص المقبولات فقط.</div></div>

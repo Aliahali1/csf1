@@ -305,7 +305,7 @@
       const orow = MDQ.outcomes.ROWS.find(r => r.qid === it.qid); if (!orow) return;
       const g = (goals || []).find(x => x.qid === it.qid), goal = { qid: it.qid, metric: g ? g.metric : 'first' }, target = g ? g.target : set.target;
       const per = [];
-      accepted.forEach(m => { const b = baselineOf(m.final, goal), a = m.row.src.pts[it.qid]; if (b && a != null) per.push({ s: m.final, name: m.final.name, base: b.pass, post: a === 1 }); });
+      accepted.forEach(m => { const b = baselineOf(m.final, goal), a = m.row.src.pts[it.qid]; if (b && a != null) per.push({ s: m.final, name: m.final.name, base: b.pass, post: a === 1, tries: b.tries }); });
       const n = per.length, bp = per.filter(x => x.base).length, pp = per.filter(x => x.post).length;
       const base = pctOf(bp, n), after = pctOf(pp, n), up = per.filter(x => !x.base && x.post).length, down = per.filter(x => x.base && !x.post).length;
       const gain = n ? after - base : null, ceil = n && base >= CEIL;

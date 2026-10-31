@@ -7,7 +7,7 @@
 (function () {
   window.MDQ = window.MDQ || {};
   const EK = 'mdq.agent.equiv.v1', DK = 'mdq.agent.decisions.v1', SK = 'mdq.agent.stopped.v1';
-  const KEYS = ['mdq.agent.goals.v1', 'mdq.agent.goallog.v1', 'mdq.agent.materials.v1', 'mdq.agent.postset.v1', EK, DK];
+  const KEYS = ['mdq.agent.goals.v1', 'mdq.agent.goallog.v1', 'mdq.agent.materials.v1', 'mdq.agent.postset.v1', EK, DK, 'mdq.agent.consist.v1'];
   const rd = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } };
   const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('std', ev, d || ''); } catch (e) {} };
@@ -75,6 +75,7 @@
     ['مراجعة مختصة (تربوي/قياس) لتكافؤ الصياغتين', 'بانتظار قراركِ لكل ناتج']
   ];
   const CHANGES = [
+    ['2026-10-31', '1.4.0', 'اتساق التشخيص بين اللعبة والاختبار البعدي: عتبات تُعلَن قبل الحساب، اتفاق النواتج (سبيرمان وCCC)، اتفاق الأزواج وكابا بالبوتستراب على الطالبة، ماكنمار، جدول الانتقال، ارتباط درجة الطالبة.', 'سؤال التجربة يشمل اتساق نتائج اللعبة مع الاختبار البعدي، وارتفاع المتوسطات وحده لا يجيب عنه.'],
     ['2026-10-30', '1.3.0', 'تصنيف الوكيل وبطاقته؛ تكافؤ صياغتي السؤال (الموقع/البعدي) بقرار المعلمة؛ قرار المعلمة على كل توصية؛ إيقاف فوري ومسح للبيانات؛ شرح أساس كل نتيجة؛ تسمية محايدة؛ مقارنة الفصول.', 'تطبيق معايير وكلاء الذكاء الاصطناعي (الإصدار 1.0) بعد إعادة صياغة أسئلة الاختبار البعدي.'],
     ['2026-10-30', '1.2.0', 'مطابقة أعمدة الاختبار البعدي بالصياغة المعادة وعرض الصياغتين أمام كل هدف.', 'تغيّر صياغة أسئلة الاختبار البعدي.']
   ];
@@ -93,5 +94,5 @@
     </details></section>`;
   }
 
-  MDQ.std = { VERSION: '1.3.0', LEVELS, DEC, hash, wordingHash, getEquiv, setEquiv, counted, getDecision, setDecision, stopped, stop, resume, wipe, byClass, cardHTML, CLASS, ALLOW, DENY, NA, ACCEPT, CHANGES, KEYS };
+  MDQ.std = { VERSION: '1.4.0', LEVELS, DEC, hash, wordingHash, getEquiv, setEquiv, counted, getDecision, setDecision, stopped, stop, resume, wipe, byClass, cardHTML, CLASS, ALLOW, DENY, NA, ACCEPT, CHANGES, KEYS };
 })();

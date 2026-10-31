@@ -67,6 +67,7 @@
             <td><ul style="margin:0;padding-inline-start:16px">${x.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></td><td>${decCell(x)}</td></tr>`).join(''); }).join('')}</tbody></table></div>`;
       if (A.did) h += `<div class="banner info" style="margin:8px 0"><div><b>مقارنة داخلية (مجموعة ضابطة بديلة):</b> متوسط تحسّن النواتج التي نفّذتِ عليها تدخلًا = <b>${A.did.t >= 0 ? '+' : ''}${A.did.t}</b> نقطة (${A.did.nt} نواتج)، مقابل <b>${A.did.c >= 0 ? '+' : ''}${A.did.c}</b> للنواتج الأخرى لنفس الطالبات (${A.did.nc} نواتج)؛ الفرق <b>${A.did.diff >= 0 ? '+' : ''}${A.did.diff}</b>. هذا أقرب لأثر التدخل لأن أثر التذكر يمس النوعين معًا.</div></div>`;
       else h += `<p class="muted small-print">المقارنة الداخلية (نواتج التدخل مقابل غيرها) تظهر حين يكون لديكِ هدف مسجّل لناتج واحد على الأقل وثلاثة نواتج أخرى دون السقف.</p>`;
+      h += MDQ.consistency ? MDQ.consistency.html(A, set, esc) : '';
       const okN = A.rows.filter(x => x.counted && x.n >= 8 && x.after >= x.target).length, mN = A.rows.filter(x => x.counted && x.n >= 8).length;
       if (A.notCounted) h += `<div class="banner bad" style="margin:8px 0"><div><b>${A.notCounted} ناتجًا خارج الخلاصة:</b> صياغته في الاختبار البعدي معادة ولم تقرري تكافؤها (أو قرّرتِ أنها تختلف جوهريًا). حدّدي «تكافؤ الصياغتين» في عمود قراركِ لإدخاله؛ هذا حكمكِ التربوي ولا يتخذه الوكيل.</div></div>`;
       if (A.byClass && A.byClass.length > 1) h += `<details style="margin:8px 0"><summary class="small-print"><b>مقارنة الفصول (للإنصاف)</b></summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الفصل</th><th>طالبات</th><th>الأساس</th><th>المتحقق</th><th>الفرق</th></tr></thead><tbody>${A.byClass.map(c => `<tr><td>${esc(c.cls)}</td><td class="num">${c.students}</td><td class="num">${c.base}٪</td><td class="num">${c.after}٪</td><td class="num">${c.gain >= 0 ? '+' : ''}${c.gain}</td></tr>`).join('')}</tbody></table></div><p class="small-print muted">متوسط عبر النواتج المحتسَبة. فرق كبير بين الفصول قد يعود إلى اختلاف التدريس أو العدد القليل لا إلى الطالبات؛ فسّريه قبل أي إجراء.</p></details>`;
@@ -230,6 +231,7 @@
         try { P.ingest(await P.readFile(f), f.name); ctx.render(); } catch (e) { ctx.msg(e.message || 'تعذّرت قراءة الملف.'); }
       };
       if (!set) return;
+      if (MDQ.consistency) MDQ.consistency.bind(root, A, set, ctx);
       const pv = root.querySelector('#pView'); if (pv) pv.onchange = () => { MDQ.post._view = pv.value; ctx.render(); };
       root.querySelector('#pTarGo').onclick = () => { const v = +root.querySelector('#pTar').value; if (v >= 1 && v <= 100) { P.setTarget(v); ctx.render(); } };
       const pa = root.querySelector('#pAll'); if (pa) pa.onchange = () => root.querySelectorAll('[data-xk]').forEach(c => c.checked = pa.checked);

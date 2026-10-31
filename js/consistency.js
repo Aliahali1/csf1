@@ -11,7 +11,7 @@
 (function () {
   window.MDQ = window.MDQ || {};
   const CK = 'mdq.agent.consist.v1', VERSION = '1.0.0';
-  const DEFAULTS = { tol: 10, mastery: 80, minPairs: 8, minOutcomes: 5, site: 'best', B: 1000 };
+  const DEFAULTS = { tol: 10, mastery: 80, minPairs: 8, minOutcomes: 5, site: 'best', k: 8, B: 1000 };
   const rd = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } };
   const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('consistency', ev, d || ''); } catch (e) {} };
@@ -26,9 +26,9 @@
     const c = Object.assign({}, DEFAULTS, o || {});
     c.tol = Math.max(1, Math.min(50, +c.tol || DEFAULTS.tol)); c.mastery = Math.max(1, Math.min(100, +c.mastery || DEFAULTS.mastery));
     c.minPairs = Math.max(3, Math.min(60, Math.round(+c.minPairs || DEFAULTS.minPairs))); c.minOutcomes = Math.max(3, Math.round(+c.minOutcomes || DEFAULTS.minOutcomes));
-    c.site = c.site === 'by3' ? 'by3' : 'best'; c.B = DEFAULTS.B; return c;
+    c.k = Math.max(2, Math.min(12, Math.round(+c.k || DEFAULTS.k))); c.site = c.site === 'by3' ? 'by3' : 'best'; c.B = DEFAULTS.B; return c;
   };
-  const describe = c => `فرق الاتفاق ≤ ${c.tol} نقاط · حد الإتقان ${c.mastery}٪ · أقل ${c.minPairs} أزواج · قياس اللعبة: ${c.site === 'by3' ? 'حتى الثالثة' : 'آخر ما وصلت إليه'}`;
+  const describe = c => `فرق الاتفاق ≤ ${c.tol} نقاط · حد الإتقان ${c.mastery}٪ · أقل ${c.minPairs} أزواج · قياس اللعبة النهائي: ${c.site === 'by3' ? 'حتى الثالثة' : 'آخر ما وصلت إليه'} · أضعف ${c.k || DEFAULTS.k} نواتج للتداخل`;
   /** يعتمد العتبات قبل رؤية النتائج. forSet = وقت رفع ملف البعدي الذي تخصه. */
   function lock(values, forSet) {
     const c = Object.assign(clean(values), { declaredAt: new Date().toISOString(), forSet: forSet || '', viewedAt: null, changedAfterView: false, history: [] });
@@ -94,6 +94,21 @@
     const lo = pctl(out, 0.025), hi = pctl(out, 0.975); return lo == null ? null : { lo, hi };
   }
 
+  /** دلالة تبديل أحادية الطرف لارتباط الرتب (استكشافية؛ بذرة ثابتة) */
+  function permP(x, y, B) {
+    const obs = spearman(x, y); if (obs == null || x.length < 6) return null;
+    const rnd = rng(777), q = y.slice(); let ge = 0;
+    for (let b = 0; b < B; b++) { for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = q[i]; q[i] = q[j]; q[j] = t; } const r = spearman(x, q); if (r != null && r >= obs - 1e-12) ge++; }
+    return (ge + 1) / (B + 1);
+  }
+  /** تداخل أضعف k ناتجًا (الأقل قيمة) بين قياسين؛ يُبلَّغ عن التعادل عند الحد */
+  function topK(a, b, k) {
+    const idx = v => v.map((x, i) => [x, i]).sort((u, w) => u[0] - w[0] || u[1] - w[1]);
+    const A = idx(a), Bb = idx(b), sa = new Set(A.slice(0, k).map(z => z[1])), sb = new Set(Bb.slice(0, k).map(z => z[1]));
+    const tie = (s) => s.length > k && s[k - 1][0] === s[k][0];
+    return { k, overlap: [...sa].filter(i => sb.has(i)).length, tie: tie(A) || tie(Bb) };
+  }
+
   /* ---------- الحساب الكامل ---------- */
   /** rows: صفوف A.rows من MDQ.post.analyze (كل صف فيه per: [{s, base, post, tries}]) */
   function compute(rows, cfg) {
@@ -122,6 +137,16 @@
     const cls = { both: outs.filter(o => o.siteMet && o.postMet).length, siteOnly: outs.filter(o => o.siteMet && !o.postMet).length, postOnly: outs.filter(o => !o.siteMet && o.postMet).length, neither: outs.filter(o => !o.siteMet && !o.postMet).length };
     res.level1 = { agreeN: outs.filter(o => o.agree).length, classAgreeN: outs.filter(o => o.classAgree).length, cls, rho: N >= cfg.minOutcomes ? spearman(xs, ys) : null, ccc: N >= cfg.minOutcomes ? ccc(xs, ys) : null,
       meanDiff: md, loa: [md - 1.96 * sd, md + 1.96 * sd], satN: outs.filter(o => o.saturated).length };
+    // التشخيص: المحاولة الأولى (فحص) مقابل البعدي (مرجع) — أساس الاتساق لأن أداء اللعبة النهائي مشبَّع عادةً
+    const fx = outs.map(o => o.first), m = cfg.mastery, gw = o => o.first < m, pw = o => o.post < m;
+    const sc = { tp: outs.filter(o => gw(o) && pw(o)).length, fn: outs.filter(o => !gw(o) && pw(o)).length, fp: outs.filter(o => gw(o) && !pw(o)).length, tn: outs.filter(o => !gw(o) && !pw(o)).length };
+    const ratio = (a, b) => a + b ? a / (a + b) * 100 : null, gains = outs.map(o => o.post - o.first);
+    const kk = Math.min(cfg.k, Math.floor(N / 2)), les = {};
+    outs.forEach(o => { const z = les[o.lesson] = les[o.lesson] || { n: 0, f: 0, q: 0 }; z.n++; z.f += o.first; z.q += o.post; });
+    res.screen = { sc, sens: ratio(sc.tp, sc.fn), ppv: ratio(sc.tp, sc.fp), spec: ratio(sc.tn, sc.fp), npv: ratio(sc.tn, sc.fn), weakFirst: sc.tp + sc.fp, weakPost: sc.tp + sc.fn,
+      rho: N >= cfg.minOutcomes ? spearman(fx, ys) : null, ccc: N >= cfg.minOutcomes ? ccc(fx, ys) : null, perm: N >= cfg.minOutcomes ? permP(fx, ys, 5000) : null,
+      meanGain: gains.reduce((s, v) => s + v, 0) / N, top: kk >= 2 ? topK(fx, ys, kk) : null,
+      lessons: Object.keys(les).map(l => ({ lesson: l, n: les[l].n, first: les[l].f / les[l].n, post: les[l].q / les[l].n })) };
     // المستوى الثاني: الأزواج مجمّعة (بوتستراب على الطالبة)
     const byStu = {}; outs.forEach(o => o.pairs.forEach(p => { (byStu[p.id] = byStu[p.id] || []).push(p); }));
     const stuIds = Object.keys(byStu), groups = stuIds.map(id => byStu[id]);
@@ -138,6 +163,7 @@
     const sRho = (a, k1) => spearman(a.map(z => z[k1]), a.map(z => z.q));
     res.student = { n: stu.length, minOutcomes: cfg.minOutcomes, rho: stu.length >= cfg.minPairs ? sRho(stu, 's') : null, rhoFirst: stu.length >= cfg.minPairs ? sRho(stu, 'f') : null,
       ci: stu.length >= Math.max(cfg.minPairs, 10) ? boot(stu, g => sRho(g, 's'), cfg.B) : null,
+      ciFirst: stu.length >= Math.max(cfg.minPairs, 10) ? boot(stu, g => sRho(g, 'f'), cfg.B) : null,
       constSite: stu.length ? new Set(stu.map(z => z.s)).size <= 1 : false };
     res.flags = [];
     if (res.pooled.satSite >= 95) res.flags.push(`تشبّع في قياس اللعبة: ${Math.round(res.pooled.satSite)}٪ من الأزواج في فئة واحدة، فالاتفاق مرتفع حسابيًا وكابا تُخفَّض بحكم التشبّع. اعتمدي على جدول الانتقال وفرق النسب لا على كابا وحدها.`);
@@ -159,7 +185,7 @@
     let cfg = getCfg(); const forSet = set ? set.at : '';
     const stale = cfg && cfg.forSet && cfg.forSet !== forSet;
     let h = `<section class="panel card" id="pCons" style="margin:12px 0"><h3 style="margin:0 0 4px">اتساق التشخيص بين اللعبة والاختبار البعدي</h3>
-      <p class="muted small-print">هل يتفق ما أظهرته اللعبة عن تحقق كل ناتج مع الاختبار البعدي؟ ارتفاع المتوسطات وحده لا يجيب. تُقارَن الطالبات أنفسهن (زوج: طالبة × ناتج). آخر ما وصلت إليه الطالبة في اللعبة هو أساس الاتساق؛ أما المحاولة الأولى فتُستخدم لقياس التحسّن فقط لأنها تسبق التعلم.</p>`;
+      <p class="muted small-print">هل يتفق ما أظهرته اللعبة عن تحقق كل ناتج مع الاختبار البعدي؟ ارتفاع المتوسطات وحده لا يجيب. تُقارَن الطالبات أنفسهن (زوج: طالبة × ناتج). أساس الاتساق هنا: هل تشخّص المحاولة الأولى في اللعبة (فحصًا) النواتج التي يُظهر الاختبار البعدي ضعفها؟ أما آخر ما وصلت إليه الطالبة في اللعبة فيُعرض كمؤشر ثانٍ لأنه يقترب عادةً من 100٪ فلا يميّز.</p>`;
     if (!cfg || stale) {
       const c = Object.assign({}, DEFAULTS, { mastery: set && set.target ? set.target : DEFAULTS.mastery });
       h += `<div class="banner info"><div><b>أعلني العتبات قبل رؤية النتائج:</b> تُحدَّد الآن وتُسجَّل بوقتها، ولا تظهر نتائج الاتساق قبل اعتمادها. أي تعديل بعد الظهور يُسجَّل ويُعلَّم في اللوحة.${stale ? ' (العتبات السابقة تخص ملفًا آخر؛ اعتمدي عتباتٍ لهذا الملف.)' : ''}</div></div>
@@ -167,7 +193,8 @@
           <label>«متفق» إذا كان الفرق ≤ (نقاط مئوية)<input type="number" id="cTol" min="1" max="50" value="${c.tol}" class="t-input" style="width:80px"></label>
           <label>حد الإتقان ٪<input type="number" id="cMas" min="1" max="100" value="${c.mastery}" class="t-input" style="width:80px"></label>
           <label>أقل عدد أزواج لحساب الناتج<input type="number" id="cMin" min="3" max="60" value="${c.minPairs}" class="t-input" style="width:80px"></label>
-          <label>قياس اللعبة<select id="cSite" class="t-input"><option value="best">آخر ما وصلت إليه (أصابت في أي محاولة)</option><option value="by3">حتى الثالثة</option></select></label>
+          <label>قياس اللعبة النهائي<select id="cSite" class="t-input"><option value="best">آخر ما وصلت إليه (أصابت في أي محاولة)</option><option value="by3">حتى الثالثة</option></select></label>
+          <label>عدد أضعف النواتج للتداخل (k)<input type="number" id="cK" min="2" max="12" value="${c.k}" class="t-input" style="width:80px"></label>
           <button class="btn gold" id="cLock">اعتمدي العتبات واحسبي</button></div></section>`;
       return h;
     }
@@ -176,11 +203,28 @@
     h += `<div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0"><span class="pill ok">العتبات معلنة: ${esc(new Date(cfg.declaredAt).toLocaleString('ar-SA-u-nu-latn'))}</span><span class="small-print muted">${esc(describe(cfg))}</span>
       ${cfg.changedAfterView ? '<span class="pill low">عُدّلت العتبات بعد رؤية النتائج</span>' : ''}${(cfg.history || []).length && !cfg.changedAfterView ? '<span class="pill mid">عُدّلت قبل رؤية النتائج</span>' : ''}
       <button class="btn ghost small" id="cEdit">تعديل العتبات</button></div>
-      <div id="cEditBox" style="display:none" class="row"><label>فرق الاتفاق<input type="number" id="cTol" min="1" max="50" value="${cfg.tol}" class="t-input" style="width:70px"></label><label>حد الإتقان ٪<input type="number" id="cMas" min="1" max="100" value="${cfg.mastery}" class="t-input" style="width:70px"></label><label>أقل أزواج<input type="number" id="cMin" min="3" max="60" value="${cfg.minPairs}" class="t-input" style="width:70px"></label><label>قياس اللعبة<select id="cSite" class="t-input"><option value="best" ${cfg.site === 'best' ? 'selected' : ''}>آخر ما وصلت إليه</option><option value="by3" ${cfg.site === 'by3' ? 'selected' : ''}>حتى الثالثة</option></select></label><button class="btn small" id="cApply">طبّقي (يُسجَّل التعديل)</button></div>`;
+      <div id="cEditBox" style="display:none" class="row"><label>فرق الاتفاق<input type="number" id="cTol" min="1" max="50" value="${cfg.tol}" class="t-input" style="width:70px"></label><label>حد الإتقان ٪<input type="number" id="cMas" min="1" max="100" value="${cfg.mastery}" class="t-input" style="width:70px"></label><label>أقل أزواج<input type="number" id="cMin" min="3" max="60" value="${cfg.minPairs}" class="t-input" style="width:70px"></label><label>قياس اللعبة<select id="cSite" class="t-input"><option value="best" ${cfg.site === 'best' ? 'selected' : ''}>آخر ما وصلت إليه</option><option value="by3" ${cfg.site === 'by3' ? 'selected' : ''}>حتى الثالثة</option></select></label><label>k<input type="number" id="cK" min="2" max="12" value="${cfg.k || 8}" class="t-input" style="width:60px"></label><button class="btn small" id="cApply">طبّقي (يُسجَّل التعديل)</button></div>`;
     if (!R.N) { h += `<div class="banner bad"><div>لا ناتج بعدد أزواج كافٍ (≥ ${cfg.minPairs}) للحساب. أكملي مطابقة الأسماء أو خفّضي أقل عدد أزواج بقرارٍ معلن.</div></div></section>`; return h; }
     const kOk = !(P.satSite >= 95 || P.satPost >= 95);
     const kp = (v, ci, d, suf) => v == null ? '—' : f(v, d) + (suf || '') + (ci ? ` <small class="muted"><span style="direction:ltr;unicode-bidi:isolate;display:inline-block">[${f(ci.lo, d)}, ${f(ci.hi, d)}]</span></small>` : '');
-    h += `<div class="kpis num">
+    const X = R.screen, pct0 = v => v == null ? '—' : f(v, 0) + '٪';
+    const lessonRows = X.lessons.slice().sort((a, b) => a.first - b.first).map(z => `<tr><td>${esc(lessonName[z.lesson] || z.lesson)}</td><td class="num">${z.n}</td><td class="num">${f(z.first, 1)}</td><td class="num">${f(z.post, 1)}</td></tr>`).join('');
+    h += `<h4 style="margin:10px 0 4px">① التشخيص: المحاولة الأولى في اللعبة مقابل الاختبار البعدي (الأساس)</h4>
+      <div class="kpis num">
+      <div class="panel kpi"><b>${f(X.rho, 2)}</b><small>ارتباط الرتب (سبيرمان) بين النواتج${X.perm == null ? '' : ' · ف تبديل ≈ ' + fp(X.perm) + ' (استكشافية)'}</small></div>
+      <div class="panel kpi"><b>${f(X.ccc, 2)}</b><small>معامل التوافق (CCC): منخفض متوقع لأن البعدي أعلى منهجيًا</small></div>
+      <div class="panel kpi"><b>${X.top ? X.top.overlap + ' من ' + X.top.k : '—'}</b><small>تداخل أضعف ${X.top ? X.top.k : cfg.k} نواتج في اللعبة والبعدي${X.top && X.top.tie ? ' (تعادل عند الحد)' : ''}</small></div>
+      <div class="panel kpi"><b>${pct0(X.sens)}</b><small>الحساسية: من النواتج دون ${cfg.mastery}٪ بعديًا (${X.weakPost}) وسمتها اللعبة دون الحد من الأولى</small></div>
+      <div class="panel kpi"><b>${pct0(X.ppv)}</b><small>القيمة التنبؤية: من النواتج التي وسمتها اللعبة (${X.weakFirst}) ظلّ ضعفها بعديًا</small></div>
+      <div class="panel kpi"><b>${S.rhoFirst == null ? '—' : kp(S.rhoFirst, S.ciFirst, 2)}</b><small>ارتباط درجة الطالبة في المحاولة الأولى ببعديّتها (ن=${S.n})</small></div></div>
+      <div class="t-scroll"><table class="t-table"><thead><tr><th>اللعبة (المحاولة الأولى) ↓ / البعدي →</th><th>دون ${cfg.mastery}٪ بعديًا</th><th>بلغ ${cfg.mastery}٪ بعديًا</th></tr></thead><tbody>
+        <tr><th>وسمتها اللعبة دون الحد</th><td class="num">${X.sc.tp}</td><td class="num">${X.sc.fp}</td></tr>
+        <tr><th>بلغت الحد في اللعبة</th><td class="num">${X.sc.fn}</td><td class="num">${X.sc.tn}</td></tr></tbody></table></div>
+      <p class="small-print">الوحدة هنا الناتج (${R.N} ناتجًا). متوسط ما زاده البعدي على المحاولة الأولى: ${f(X.meanGain, 1)} نقطة. الارتباط والتداخل يقيسان اتفاق <b>الترتيب</b> (أيّ النواتج أضعف)، لا تطابق المستوى؛ فالمحاولة الأولى تسبق التعلم والأسئلة مختلفة، فالفرق في المستوى متوقع. الدلالة بالتبديل وصفية على ${R.N} ناتجًا مجمّعًا ولا تُعمَّم.</p>
+      <details><summary class="small-print">متوسط كل درس: الأولى مقابل البعدي</summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الدرس</th><th>النواتج</th><th>الأولى ٪</th><th>البعدي ٪</th></tr></thead><tbody>${lessonRows}</tbody></table></div></details>
+      <h4 style="margin:12px 0 4px">② آخر ما وصلت إليه الطالبة في اللعبة مقابل البعدي ${P.satSite >= 95 ? '<span class="pill na">مشبَّع</span>' : ''}</h4>
+      ${P.satSite >= 95 ? '<p class="small-print muted">أصابت الطالبات في اللعبة في النهاية بنسبة تقارب 100٪ (تحاول حتى تصيب)، فهذا القياس لا يميّز بين النواتج؛ اتفاق الأزواج يساوي تقريبًا نسبة نجاح البعدي، وارتباط الرتب وCCC قريبان من الصفر بحكم غياب التباين لا بسبب عدم اتساق. يُعرض للشفافية فقط.</p>' : ''}
+      <div class="kpis num">
       <div class="panel kpi"><b>${L.agreeN} من ${R.N}</b><small>نواتج متفقة (الفرق ≤ ${cfg.tol} نقاط)</small></div>
       <div class="panel kpi"><b>${L.classAgreeN} من ${R.N}</b><small>اتفاق التصنيف «متحقق/لا» عند ${cfg.mastery}٪</small></div>
       <div class="panel kpi"><b>${f(L.rho, 2)}</b><small>ارتباط الرتب (سبيرمان) بين النواتج</small></div>
@@ -205,7 +249,7 @@
 
   function bind(root, A, set, ctx) {
     const q = s => root.querySelector(s); if (!q('#pCons')) return;
-    const read = () => ({ tol: +q('#cTol').value, mastery: +q('#cMas').value, minPairs: +q('#cMin').value, site: q('#cSite').value });
+    const read = () => ({ tol: +q('#cTol').value, mastery: +q('#cMas').value, minPairs: +q('#cMin').value, site: q('#cSite').value, k: +q('#cK').value });
     const lk = q('#cLock'); if (lk) lk.onclick = () => { lock(read(), set ? set.at : ''); ctx.render(); };
     const ed = q('#cEdit'); if (ed) ed.onclick = () => { const b = q('#cEditBox'); b.style.display = b.style.display === 'none' ? '' : 'none'; };
     const ap = q('#cApply'); if (ap) ap.onclick = () => { change(read()); ctx.render(); };
@@ -214,15 +258,15 @@
     const cv = q('#cCsv'); if (cv) cv.onclick = async () => {
       const head = ['الدرس', 'الناتج', 'ن', 'اللعبة %', 'الأولى %', 'البعدي %', 'الفرق', 'اتفاق الأزواج %', 'كابا', 'ماكنمار ف', 'الحكم', 'اختلاف التصنيف', 'تشبّع'];
       const rowsCsv = R.outcomes.map(o => [lessonName[o.lesson], o.outcome, o.n, r1(o.site), r1(o.first), r1(o.post), r1(o.diff), r1(o.agreePct), o.saturated ? '' : r2(o.kappa), o.p == null ? '' : +o.p.toFixed(4), o.agree ? 'متفق' : 'غير متفق', o.classAgree ? '' : 'نعم', o.saturated ? 'نعم' : '']);
-      const meta = [['العتبات المعلنة', describe(cfg)], ['وقت الإعلان', cfg.declaredAt], ['عُدّلت بعد رؤية النتائج', cfg.changedAfterView ? 'نعم' : 'لا']];
+      const X = R.screen, meta = [['التشخيص: المحاولة الأولى مقابل البعدي', ''], ['سبيرمان بين النواتج', r2(X.rho)], ['CCC', r2(X.ccc)], ['ف التبديل (استكشافية)', X.perm == null ? '' : +X.perm.toFixed(4)], ['تداخل أضعف k', X.top ? X.top.overlap + '/' + X.top.k : ''], ['الحساسية %', r1(X.sens)], ['القيمة التنبؤية %', r1(X.ppv)], ['وسمتها اللعبة وظل ضعفها', X.sc.tp], ['وسمتها اللعبة وتحسّنت', X.sc.fp], ['بلغت في اللعبة ودون الحد بعديًا', X.sc.fn], ['بلغت في الاثنين', X.sc.tn], ['ارتباط الطالبة (الأولى)', r2(R.student.rhoFirst)], [''], ['العتبات المعلنة', describe(cfg)], ['وقت الإعلان', cfg.declaredAt], ['عُدّلت بعد رؤية النتائج', cfg.changedAfterView ? 'نعم' : 'لا']];
       await MDQ.saveFile('اتساق_اللعبة_والاختبار_البعدي.csv', new Blob(['﻿' + meta.map(r => r.map(Q).join(',')).concat([''], [head.map(Q).join(',')], rowsCsv.map(r => r.map(Q).join(','))).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     };
     const rc = q('#cRec'); if (rc) rc.onclick = () => {
-      const L = R.level1, P = R.pooled; log('نتائج الاتساق', `${describe(cfg)} · متفقة ${L.agreeN}/${R.N} · ρ=${r2(L.rho)} · CCC=${r2(L.ccc)} · أزواج ${P.pairs}: اتفاق ${r1(P.agree)}٪ · كابا ${r2(P.kappa)}${R.student.rho == null ? '' : ' · ارتباط الطالبات ' + r2(R.student.rho)}`);
+      const L = R.level1, P = R.pooled; log('نتائج الاتساق', `${describe(cfg)} · متفقة ${L.agreeN}/${R.N} · ρ=${r2(L.rho)} · CCC=${r2(L.ccc)} · أزواج ${P.pairs}: اتفاق ${r1(P.agree)}٪ · [الأولى↔البعدي: ρ=${r2(R.screen.rho)} · CCC=${r2(R.screen.ccc)} · حساسية ${r1(R.screen.sens)}٪ · قيمة تنبؤية ${r1(R.screen.ppv)}٪${R.screen.top ? ' · تداخل ' + R.screen.top.overlap + '/' + R.screen.top.k : ''}${R.student.rhoFirst == null ? '' : ' · طالبات ' + r2(R.student.rhoFirst)}] · كابا ${r2(P.kappa)}${R.student.rho == null ? '' : ' · ارتباط الطالبات ' + r2(R.student.rho)}`);
       ctx.msg('سُجّلت نتائج الاتساق في سجل الوكيل.'); ctx.render();
     };
   }
 
   MDQ.consistency = { VERSION, DEFAULTS, CK, getCfg, lock, change, compute, html, bind, describe,
-    _stats: { kappa, mcnemar, spearman, ccc, pearson, ranks, pairedDiff, table2 } };
+    _stats: { kappa, mcnemar, spearman, ccc, pearson, ranks, pairedDiff, table2, permP, topK } };
 })();

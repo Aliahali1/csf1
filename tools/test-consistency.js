@@ -56,4 +56,16 @@ ok(C.html(A, set, esc).includes('عُدّلت العتبات بعد رؤية ا�
 ok(ctx.MDQ.goals.log().some(e => e.event.includes('عُدّلت عتبات الاتساق بعد رؤية النتائج')), 'التعديل مسجَّل في سجل الوكيل');
 const h2 = C.html(A, { at: 'other' }, esc); ok(h2.includes('cLock'), 'ملف بعدي جديد يتطلب إعلان عتبات جديدًا');
 ok(ctx.MDQ.std.KEYS.includes('mdq.agent.consist.v1'), 'مسح بيانات الوكيل يشمل عتبات الاتساق');
+
+// 4) التشخيص: المحاولة الأولى مقابل البعدي (الأساس الجديد)
+const S2 = C._stats; ok(S2.topK([1, 2, 3, 4], [1, 3, 2, 4], 2).overlap === 1, 'تداخل أضعف k (مثال يدوي)');
+ok(S2.topK([1, 1, 1, 4], [1, 1, 1, 4], 2).tie === true, 'تنبيه التعادل عند الحد');
+ok(S2.permP([1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8], 2000) < 0.01 && S2.permP([1, 2, 3, 4, 5, 6, 7, 8], [3, 1, 4, 2, 8, 5, 7, 6], 2000) > 0.001, 'دلالة التبديل: تام يقترب من الصفر');
+const mk = (f, q, name) => { const per = []; for (let s = 0; s < 20; s++) per.push({ s: { studentId: 'T' + s, name: 'ط' + s, className: '3/1' }, base: s < f / 5, post: s < q / 5, tries: s < f / 5 ? 1 : 2 }); return { qid: name, lesson: 'db', outcome: name, n: 20, per, counted: true }; };
+const Rs = C.compute([mk(50, 70, 'a'), mk(95, 95, 'b'), mk(60, 90, 'c'), mk(95, 85, 'd')], { tol: 10, mastery: 90, minPairs: 8, minOutcomes: 5, site: 'best', k: 8 }).screen;
+ok(Rs.sc.tp === 1 && Rs.sc.fn === 1 && Rs.sc.fp === 1 && Rs.sc.tn === 1, 'جدول 2×2 للنواتج (1/1/1/1)');
+ok(Rs.sens === 50 && Rs.ppv === 50 && Rs.spec === 50 && Rs.npv === 50, 'حساسية وقيمة تنبؤية');
+ok(Rs.top && Rs.top.k === 2 && Rs.rho === null, 'k يُقيَّد بنصف عدد النواتج، وسبيرمان لا تُحسب أقل من الحد الأدنى');
+ok(R1.screen && R1.screen.rho != null && R1.screen.perm > 0 && R1.screen.perm <= 1 && R1.screen.lessons.length === 4 && R1.student.rhoFirst != null && R1.student.ciFirst, 'كتلة التشخيص كاملة على البيانات الاصطناعية');
+const hh = C.html(A, set, esc); ok(hh.includes('المحاولة الأولى في اللعبة مقابل الاختبار البعدي') && hh.includes('مشبَّع') === (R1.pooled.satSite >= 95), 'الواجهة تعرض الأساس الجديد');
 console.log(`نجح: ${n} فحصًا`);

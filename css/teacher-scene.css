@@ -42,3 +42,34 @@ html[data-theme="dark"] .teacher-mode .t-table tbody tr:hover td { background: #
 
 /* نصوص وأزرار التنقل التي تقع مباشرة فوق الخلفية: شريط معتم ليسهل قراءتها */
 .teacher-mode #tbody > p, .teacher-mode #tbody > .row, .teacher-mode #tbody > h2, .teacher-mode #tbody > h3, .teacher-mode #tbody > .pager { background: var(--surface); color: var(--ink, #2B2245); padding: 8px 14px; border-radius: 14px; box-shadow: var(--shadow); margin-block: 8px; }
+
+/* ===== دعم الطالبات + الأثر المقاس (وكيل الأهداف) ===== */
+.teacher-mode #spSec .sp-table td { vertical-align: top; }
+.teacher-mode #spSec .sp-table textarea.t-input { width: 100%; background: #FFFFFF; color: #2B2245; border-color: #D9D0F0; line-height: 1.6; resize: vertical; }
+.sp-ap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 190px; }
+.ap-btn { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #B9A6EA; background: #FFFFFF; color: #6B4EF0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: transform .15s, background .15s, border-color .15s; }
+.ap-btn svg { width: 19px; height: 19px; stroke-width: 2.4; }
+.ap-btn:hover { transform: scale(1.08); }
+.ap-btn:focus-visible { outline: 3px solid #FFC93C; outline-offset: 2px; }
+.ap-btn.ok:hover { border-color: #109E6E; color: #109E6E; }
+.ap-btn.no:hover { border-color: #D9365E; color: #D9365E; }
+.ap-btn.ok.is-on { background: #109E6E; border-color: #109E6E; color: #FFFFFF; }
+.ap-btn.no.is-on { background: #D9365E; border-color: #D9365E; color: #FFFFFF; }
+.ap-lbl { font-size: .82rem; font-weight: 700; color: #625A82; }
+.ap-lbl.ok { color: #0B7D58; } .ap-lbl.bad { color: #B5294C; }
+#spSec .sp-sub td, .teacher-mode #spSec .t-table tbody tr.sp-sub td { background: #EAF8F1; border-top: 1px dashed #7FCBA6; color: #1F3B31; }
+#spSec .ok-t { color: #0B7D58; }
+#spSec .sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 8px 0 2px; }
+#spSec .sp-box { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: #FFFFFF; border: 1px solid #CFE8DB; border-radius: 10px; }
+#spSec .sp-box.done { background: #F6FFFA; }
+#spSec .sp-box input { max-width: 110px; background: #FFFFFF; color: #2B2245; }
+html[data-theme="dark"] .ap-btn { background: #1E1840; border-color: #6F5FC4; color: #B3A3FF; }
+html[data-theme="dark"] .ap-lbl { color: #BDB3E3; } html[data-theme="dark"] .ap-lbl.ok { color: #4FE0A6; } html[data-theme="dark"] .ap-lbl.bad { color: #FF8AA6; }
+html[data-theme="dark"] #spSec .sp-sub td, html[data-theme="dark"] .teacher-mode #spSec .t-table tbody tr.sp-sub td { background: #173A33; border-top-color: #2E6B58; color: #E6FFF5; }
+html[data-theme="dark"] #spSec .sp-box { background: #1E1840; border-color: #35296E; } html[data-theme="dark"] #spSec .sp-box.done { background: #173A33; }
+html[data-theme="dark"] #spSec .ok-t { color: #4FE0A6; }
+html[data-theme="dark"] .teacher-mode #spSec .sp-table textarea.t-input, html[data-theme="dark"] #spSec .sp-box input { background: #261F52; color: #F2EEFF; border-color: #473C80; }
+@media (prefers-reduced-motion: reduce) { .ap-btn { transition: none; } .ap-btn:hover { transform: none; } }
+#spSec .sp-book { display: inline-block; margin-top: 3px; padding: 1px 9px; border-radius: 999px; background: #EEE8FF; color: #4B3BAE; border: 1px solid #D4C8FA; font-size: .74rem; font-weight: 700; line-height: 1.6; }
+html[data-theme="dark"] #spSec .sp-book { background: #2B2260; color: #CFC5FF; border-color: #473C80; }
+

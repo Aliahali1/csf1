@@ -1,36 +1,48 @@
 /* ============================================================
    دعم الطالبات بعد الاختبار البعدي + «ما بعد التوصيات: الأثر المقاس» (وكيل الأهداف — للمعلمة فقط)
-   مستوى الاستقلالية: يقترح فقط. لا شيء يُنفَّذ ولا يُحسب أثره قبل أن تعتمد المعلمة الخطة وتُدخل بنفسها نتيجة ما بعد المعالجة.
+   مستوى الاستقلالية: يقترح فقط. لا شيء يُنفَّذ ولا يُحسب أثره قبل أن:
+     (1) تعتمد المعلمة الخطة (أيقونة الاعتماد)، (2) تُدخل بنفسها درجة الطالبة بعد المعالجة، (3) يعتمد الوكيل الدرجة (صالحة 0–100).
    - المصدر: نتائج المقارنة (اللعبة ← البعدي) لكل ناتج «مُحتسب» فقط؛ الطالبة ضعيفة في الناتج إن لم تتحقق فيه في البعدي.
    - التصنيف: «بقيت ضعيفة» (لم تتحقق قبليًا ولا بعديًا) أو «تراجعت» (تحققت قبليًا ثم لم تتحقق بعديًا).
-   - الخطط مقترحات قاعدية عامة قابلة للتعديل، وليست تشخيصًا لسبب الضعف.
+   - تحقق الناتج بعد المعالجة: الدرجة ≥ حد التحقق (مستهدف الناتج). نسبة الطالبة = نواتجها المتحققة ÷ نواتجها المقارَنة.
+   - الخطط مقترحات قابلة للتعديل مبنية على موضع الناتج في كتاب المهارات الرقمية للصف الثالث المتوسط (الفصل الأول، الوحدتان 1 و2) وأنشطته «لنطبق معًا»
+     من ملف js/textbook.js؛ وإن لم يوجد ربط للناتج فتُقترح مراجعة ملف الدرس عمومًا. ليست تشخيصًا لسبب الضعف.
    - الأثر المقاس وصفي: لا مجموعة ضابطة، والطالبات المختارات ضعيفات أصلًا (انحدار نحو المتوسط)،
      وإعادة نفس السؤال قد تقيس التذكّر؛ فيُوصى بسؤال مكافئ للقياس بعد المعالجة.
    - كل شيء يُحسب في المتصفح ويُحفظ محليًا فقط.
    ============================================================ */
 (function () {
   window.MDQ = window.MDQ || {};
-  const SK = 'mdq.agent.support.v1', VERSION = '1.0.0', MIN_GROUP = 3;
+  const SK = 'mdq.agent.support.v1', VERSION = '1.2.0', MIN_GROUP = 3;
   const LN = { db: 'إنشاء قاعدة البيانات', query: 'الاستعلام والتقارير', device: 'حماية جهاز الحاسب', cyber: 'مقدمة في الأمن السيبراني' };
   const rd = () => { try { const v = JSON.parse(localStorage.getItem(SK) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };
-  const get = () => { const s = rd() || {}; return { plans: s.plans || {}, groups: s.groups || {}, results: s.results || {}, minGroup: Math.max(2, Math.min(20, Math.round(+s.minGroup || MIN_GROUP))) }; };
+  const get = () => { const s = rd() || {}; return { plans: s.plans || {}, groups: s.groups || {}, results: s.results || {}, drafts: s.drafts || {}, minGroup: Math.max(2, Math.min(20, Math.round(+s.minGroup || MIN_GROUP))) }; };
   const put = s => { try { localStorage.setItem(SK, JSON.stringify(s)); } catch (e) {} };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('support', ev, d || ''); } catch (e) {} };
   const pct = (a, b) => b ? Math.round(a / b * 100) : null;
-  const sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + v;
+  const sgn = v => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v);
   const rk = (sid, qid) => sid + '|' + qid;
+  const thr = x => (x && +x.target > 0) ? +x.target : 80;                 // حد التحقق = مستهدف الناتج
+  const measured = r => !!r && (r.score != null ? r.confirmed === true : (r.v === 1 || r.v === 0));
+  const isWon = (r, t) => r.score != null ? r.score >= t : r.v === 1;
+  const short = t => { const first = String(t || '').split('\n').map(x => x.replace(/\s+/g, ' ').trim()).find(Boolean) || ''; return first.length > 150 ? first.slice(0, 148) + '…' : first; };
+  const TB = () => MDQ.textbook || null;
+  /** إشارة مختصرة إلى موضع الناتج في الكتاب (صفحات + أنشطة) أو '' إن لم يوجد ربط */
+  const bookRef = qid => { const tb = TB(), e = tb && tb.get(qid); return e ? 'الكتاب: ' + tb.brief(e) : ''; };
 
   /* ---------- التجميع: طالبة ← نواتج لم تتحقق بعد البعدي ---------- */
   function collect(A, minGroup) {
     const rows = (A && A.rows || []).filter(x => x.counted && x.n > 0);
-    const st = {}, outs = {};
+    const st = {}, cmp = {}, outs = {};
     rows.forEach(x => {
       outs[x.qid] = x;
+      (x.per && x.per.length ? x.per : x.fail).forEach(p => { const id = p.s.studentId, c = cmp[id] = cmp[id] || { n: 0, ok: 0 }; c.n++; if (p.post) c.ok++; });
       x.fail.forEach(p => {
         const id = p.s.studentId, o = st[id] = st[id] || { id, name: p.name, cls: p.s.className || '', items: [] };
         o.items.push({ qid: x.qid, outcome: x.outcome, lesson: x.lesson, kind: p.base ? 'drop' : 'stay' });
       });
     });
+    Object.values(st).forEach(s => { const c = cmp[s.id] || { n: s.items.length, ok: 0 }; s.compared = c.n; s.passed = c.ok; s.before = pct(c.ok, c.n); });
     const students = Object.values(st).sort((a, b) => b.items.length - a.items.length || String(a.name).localeCompare(String(b.name), 'ar'));
     const groups = rows.filter(x => x.fail.length >= minGroup).map(x => ({ qid: x.qid, outcome: x.outcome, lesson: x.lesson, ids: x.fail.map(p => p.s.studentId), names: x.fail.map(p => p.name), n: x.n, drops: x.fail.filter(p => p.base).length }))
       .sort((a, b) => b.ids.length - a.ids.length);
@@ -39,24 +51,36 @@
 
   /* ---------- اقتراحات قاعدية (عامة، قابلة للتعديل) ---------- */
   function suggestStudent(s) {
-    const n = s.items.length, lessons = [...new Set(s.items.map(i => i.lesson))], drops = s.items.filter(i => i.kind === 'drop').length;
-    const L = lessons.map(l => LN[l] || l).join('، ');
-    const parts = [];
-    if (n >= 3 || lessons.length === 1 && n >= 2) {
-      parts.push(`خطة علاجية فردية (${n} نواتج${lessons.length === 1 ? ' في درس ' + L : ' في ' + lessons.length + ' دروس'}): جلسة قصيرة (10–15 دقيقة) لمراجعة ملف الدرس، ثم إعادة المرحلة في اللعبة، ثم نشاط تطبيقي واحد.`);
-      parts.push('اطلبي منها شرح فكرة واحدة بكلماتها لزميلة أو لكِ (شرح الأقران/الاستجواب القصير) للتحقق من الفهم.');
-    } else {
-      parts.push(`توصية قصيرة: إعادة قراءة الجزء الخاص بالناتج في ملف الدرس (${L}) ثم إعادة مرحلته في اللعبة، ومتابعة سريعة في الحصة.`);
-    }
-    if (drops) parts.push(`${drops} من نواتجها تحققت قبليًا ثم لم تتحقق بعديًا: راجعي ثبات التعلّم (تكرار متباعد) بدل إعادة التدريس من الصفر.`);
-    return parts.join('\n');
+    const tb = TB(), n = s.items.length, drops = s.items.filter(i => i.kind === 'drop').length;
+    const lessons = [...new Set(s.items.map(i => i.lesson))], L = lessons.map(l => LN[l] || l).join('، ');
+    const items = s.items.slice().sort((x, y) => x.kind === y.kind ? 0 : x.kind === 'drop' ? -1 : 1);   // من تراجعت أولًا
+    const compact = n > 3, plan = n >= 3 || lessons.length === 1 && n >= 2;
+    const out = [(plan ? 'خطة علاجية فردية' : 'توصية مقترحة') + ` (${n} ${n === 1 ? 'ناتج' : 'نواتج'}${lessons.length === 1 ? ' في درس ' + L : ' في ' + lessons.length + ' دروس'}) مبنية على كتاب المهارات الرقمية للصف الثالث المتوسط:`];
+    items.forEach((i, k) => {
+      const e = tb && tb.get(i.qid), tag = i.kind === 'drop' ? ' (تراجعت)' : '';
+      if (!e) { out.push(`${k + 1}) ${i.outcome}${tag}: راجعي الجزء الخاص بالناتج في ملف درس «${LN[i.lesson] || i.lesson}» ثم أعيدي مرحلته في اللعبة.`); return; }
+      out.push(`${k + 1}) ${i.outcome}${tag}\n   الكتاب: درس «${tb.lessonTitle(e.file)}»، ${tb.pg(e)} — ${e.section}.`
+        + (compact ? '' : `\n   المراجعة: ${e.points}`) + `\n   النشاط: ${tb.act(e)}.` + (compact ? '' : `\n   تحقق: ${e.check}`));
+    });
+    out.push('طريقة التنفيذ: جلسة قصيرة (10–15 دقيقة) لقراءة المواضع المذكورة ثم تنفيذ نشاط الكتاب، ثم إعادة المرحلة في اللعبة، ثم سؤال مكافئ (لا السؤال نفسه) بعد المعالجة.');
+    if (plan) out.push('اطلبي منها شرح فكرة واحدة بكلماتها لزميلة أو لكِ (شرح الأقران/استجواب قصير) للتحقق من الفهم.');
+    if (drops) out.push(`${drops} من نواتجها تحققت قبليًا ثم لم تتحقق بعديًا: راجعي ثبات التعلّم (تكرار متباعد) بدل إعادة التدريس من الصفر.`);
+    return out.join('\n');
   }
   function suggestGroup(g) {
-    const L = LN[g.lesson] || g.lesson;
-    let t = `خطة علاجية جماعية (${g.ids.length} طالبات لم يتحققن في هذا الناتج، من ${g.n} مقارَنة): إعادة تدريس مصغّرة في مجموعة صغيرة (15–20 دقيقة) لناتج درس «${L}» بمثال تطبيقي مختلف عن أمثلة الحصة، ثم تدريب موجَّه، ثم إعادة المرحلة في اللعبة.`;
-    if (g.drops) t += `\n${g.drops} منهن تحققن قبليًا فتراجعن: ركّزي على سبب التراجع (نسيان/لبس في الصياغة) لا على الشرح من جديد.`;
-    t += '\nإن تكرر الضعف عند عدد كبير من الصف فقد يكون في أسلوب الشرح أو صياغة السؤال؛ راجعي ذلك قبل تحميل الطالبات المسؤولية.';
-    return t;
+    const tb = TB(), e = tb && tb.get(g.qid), L = LN[g.lesson] || g.lesson;
+    const out = [`خطة علاجية جماعية (${g.ids.length} طالبات لم يتحققن في هذا الناتج، من ${g.n} مقارَنة):`];
+    if (e) {
+      out.push(`1) إعادة تدريس مصغّرة (15–20 دقيقة) لموضع الكتاب: درس «${tb.lessonTitle(e.file)}»، ${tb.pg(e)} — ${e.section}.\n   المراجعة: ${e.points}`);
+      out.push(`2) تدريب موجَّه من الكتاب: ${tb.act(e)}.`);
+      out.push(`3) تحقق جماعي: ${e.check}`);
+      out.push('4) إعادة المرحلة في اللعبة، ثم سؤال مكافئ (لا السؤال نفسه) بعد المعالجة، وبمثال تطبيقي مختلف عن أمثلة الحصة.');
+    } else {
+      out.push(`إعادة تدريس مصغّرة في مجموعة صغيرة (15–20 دقيقة) لناتج درس «${L}» بمثال تطبيقي مختلف عن أمثلة الحصة، ثم تدريب موجَّه، ثم إعادة المرحلة في اللعبة.`);
+    }
+    if (g.drops) out.push(`${g.drops} منهن تحققن قبليًا فتراجعن: ركّزي على سبب التراجع (نسيان/لبس في الصياغة) لا على الشرح من جديد.`);
+    out.push('إن تكرر الضعف عند عدد كبير من الصف فقد يكون في أسلوب الشرح أو صياغة السؤال؛ راجعي ذلك قبل تحميل الطالبات المسؤولية.');
+    return out.join('\n');
   }
 
   /* ---------- الأزواج المعتمدة (طالبة × ناتج) ---------- */
@@ -72,11 +96,22 @@
     });
     return Object.values(m);
   }
+  /** الخطط المعتمدة لطالبة (للعرض في جدول الأثر) */
+  function plansOf(s, C, S) {
+    const out = [], pl = S.plans[s.id];
+    if (pl && pl.status === 'approved') out.push({ type: 'فردية', text: short(pl.text != null ? pl.text : suggestStudent(s)) });
+    s.items.forEach(i => {
+      const gr = S.groups[i.qid], g = C.groups.find(x => x.qid === i.qid);
+      if (gr && gr.status === 'approved' && g && g.ids.includes(s.id)) out.push({ type: 'جماعية', text: short(gr.text != null ? gr.text : suggestGroup(g)), outcome: i.outcome });
+    });
+    return out;
+  }
 
   /* ---------- الأثر المقاس ---------- */
   function impact(C, S) {
-    const pairs = approvedPairs(C, S), meas = pairs.filter(p => S.results[rk(p.sid, p.qid)] && (S.results[rk(p.sid, p.qid)].v === 1 || S.results[rk(p.sid, p.qid)].v === 0));
-    const won = meas.filter(p => S.results[rk(p.sid, p.qid)].v === 1);
+    const pairs = approvedPairs(C, S), key = p => rk(p.sid, p.qid);
+    const meas = pairs.filter(p => measured(S.results[key(p)]));
+    const won = meas.filter(p => isWon(S.results[key(p)], thr(C.outs[p.qid]))), wonK = new Set(won.map(key)), measK = new Set(meas.map(key));
     const byOut = C.rows.map(x => {
       const ps = pairs.filter(p => p.qid === x.qid), ms = meas.filter(p => p.qid === x.qid), ws = won.filter(p => p.qid === x.qid);
       const passers = x.n - x.fail.length, after = pct(passers + ws.length, x.n);
@@ -86,80 +121,115 @@
         roi: x.after < x.target && ms.length ? Math.round((after - x.after) / (x.target - x.after) * 100) : null };
     }).filter(o => o.approved > 0);
     const tot = byOut.reduce((a, o) => { a.n += o.n; a.b += Math.round(o.base * o.n / 100); a.p += o.n - (C.outs[o.qid].fail.length); a.w += o.won; return a; }, { n: 0, b: 0, p: 0, w: 0 });
-    // الطالبات: تحقّقت كل نواتجها الضعيفة بعد المعالجة (وكلها مقيسة)
+    // الطالبات: نسبتها قبل الخطة (بعد البعدي) وبعدها، والخطة المعتمدة
     const sids = [...new Set(pairs.map(p => p.sid))], stu = sids.map(id => {
-      const s = C.students.find(x => x.id === id), mine = pairs.filter(p => p.sid === id), mm = mine.filter(p => meas.includes(p)), ww = mm.filter(p => won.includes(p));
-      return { id, name: s.name, cls: s.cls, weak: s.items.length, approved: mine.length, measured: mm.length, won: ww.length, score: pct(ww.length, mm.length), full: mm.length === s.items.length && ww.length === mm.length };
+      const s = C.students.find(x => x.id === id), mine = pairs.filter(p => p.sid === id), mm = mine.filter(p => measK.has(key(p))), ww = mm.filter(p => wonK.has(key(p)));
+      const before = s.before, after = mm.length ? pct(s.passed + ww.length, s.compared) : null;
+      return { id, name: s.name, cls: s.cls, weak: s.items.length, compared: s.compared, passed: s.passed, approved: mine.length, measured: mm.length, won: ww.length, score: pct(ww.length, mm.length),
+        before, after, delta: after == null || before == null ? null : after - before, plans: plansOf(s, C, S), partial: mm.length > 0 && mm.length < mine.length,
+        full: mm.length === s.items.length && ww.length === mm.length };
     });
+    const withAfter = stu.filter(s => s.after != null), avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null;
     return { pairs: pairs.length, measured: meas.length, won: won.length, recovery: pct(won.length, meas.length), coverage: pct(meas.length, pairs.length),
       byOut, stu, overall: tot.n ? { n: tot.n, base: pct(tot.b, tot.n), post: pct(tot.p, tot.n), after: pct(tot.p + tot.w, tot.n) } : null,
-      studentsFull: stu.filter(s => s.full).length, studentsApproved: stu.length, studentsMeasured: stu.filter(s => s.measured).length };
+      avgBefore: avg(withAfter.map(s => s.before)), avgAfter: avg(withAfter.map(s => s.after)), avgDelta: avg(withAfter.map(s => s.delta)),
+      studentsFull: stu.filter(s => s.full).length, studentsApproved: stu.length, studentsMeasured: withAfter.length,
+      detail: meas.map(p => { const r = S.results[key(p)], t = thr(C.outs[p.qid]); return { name: p.name, outcome: p.outcome, score: r.score != null ? r.score : null, target: t, ok: wonK.has(key(p)) }; }) };
   }
 
   /* ---------- الواجهة ---------- */
+  const ICO = k => (MDQ.icons && MDQ.icons[k]) || (k === 'check' ? '✓' : '✕');
+  function apBtns(type, id, cur) {
+    const on = cur === 'approved', off = cur === 'rejected';
+    return `<div class="sp-ap"><button type="button" class="ap-btn ok ${on ? 'is-on' : ''}" data-sp="${on ? 'reset' : 'ok'}" data-spt="${type}" data-spi="${id}" aria-pressed="${on}" title="${on ? 'إلغاء الاعتماد' : 'اعتمدي الخطة'}" aria-label="${on ? 'إلغاء اعتماد الخطة' : 'اعتماد الخطة'}">${ICO('check')}</button>`
+      + `<button type="button" class="ap-btn no ${off ? 'is-on' : ''}" data-sp="${off ? 'reset' : 'no'}" data-spt="${type}" data-spi="${id}" aria-pressed="${off}" title="${off ? 'إعادة للانتظار' : 'عدم الاعتماد'}" aria-label="${off ? 'إعادة الخطة للانتظار' : 'عدم اعتماد الخطة'}">${ICO('x')}</button>`
+      + `<span class="ap-lbl ${on ? 'ok' : off ? 'bad' : ''}">${on ? 'تم اعتماد الخطة' : off ? 'غير معتمدة' : 'بانتظار اعتمادكِ'}</span></div>`;
+  }
+  function scoreBox(p, S, C, esc) {
+    const k = rk(p.sid, p.qid), r = S.results[k], d = S.drafts[k], t = thr(C.outs[p.qid]);
+    if (measured(r)) {
+      const w = isWon(r, t);
+      return `<div class="sp-box done"><span class="muted small-print">${esc(p.lab || p.outcome)}</span> <b class="num">${r.score != null ? r.score + '٪' : '—'}</b> <span class="pill ${w ? 'ok' : 'low'}">${w ? 'تحقق' : 'لم يتحقق'} (حد ${t}٪)</span> <span class="pill ok">اعتمد الوكيل الدرجة</span> <button type="button" class="btn ghost small" data-sp="edit" data-spk="${esc(k)}">تعديل</button></div>`;
+    }
+    return `<label class="sp-box"><span class="small-print">${esc(p.lab || p.outcome)} <span class="muted">(حد التحقق ${t}٪)</span></span><input type="number" min="0" max="100" step="1" inputmode="numeric" class="t-input" data-spd="${esc(k)}" value="${d == null ? '' : esc(d)}" placeholder="الدرجة ٪" aria-label="درجة ${esc(p.name)} في ${esc(p.outcome)} بعد المعالجة"></label>`;
+  }
+  const confRow = (cnt, total, type, id) => `<div class="row" style="margin-top:6px"><button type="button" class="btn gold small" data-sp="conf" data-spt="${type}" data-spi="${id}">اعتماد الدرجات (الوكيل)</button><span class="muted small-print">اعتمد الوكيل ${cnt} من ${total} · الصالح من 0 إلى 100، وما لم يُعتمد لا يدخل الحساب.</span></div>`;
+
   function html(A, set, model, esc) {
     if (!A || !set) return '';
     const S = get(), C = collect(A, S.minGroup), I = impact(C, S);
-    const st = x => x === 'approved' ? '<span class="pill ok">معتمدة</span>' : x === 'rejected' ? '<span class="pill low">غير معتمدة</span>' : '<span class="pill mid">بانتظار قراركِ</span>';
     const kind = k => k === 'drop' ? '<span class="pill low">تراجعت</span>' : '<span class="pill mid">بقيت ضعيفة</span>';
-    const decBtns = (type, id, cur) => `<div class="row" style="gap:6px;margin-top:4px"><button class="btn small ${cur === 'approved' ? 'gold' : ''}" data-sp="ok" data-spt="${type}" data-spi="${esc(id)}">اعتماد</button><button class="btn small" data-sp="no" data-spt="${type}" data-spi="${esc(id)}">عدم اعتماد</button>${cur ? `<button class="btn small" data-sp="reset" data-spt="${type}" data-spi="${esc(id)}">إعادة للانتظار</button>` : ''}</div>`;
-    let h = `<section id="spSec" style="margin-top:16px"><h3 style="margin:10px 0 4px">دعم الطالبات بعد المقارنة والاختبار البعدي (جميع الأهداف)</h3>
-      <div class="banner info"><div><b>كيف يعمل:</b> يجمع الوكيل الطالبات اللواتي لم يتحققن في ناتج بعد الاختبار البعدي، ويقترح خطة لكل طالبة وخطة جماعية عند اشتراك ${S.minGroup} طالبات فأكثر في ناتج واحد. هذه <b>مقترحات عامة</b> لا تشخّص سبب الضعف؛ لا يُنفَّذ ولا يُحتسب شيء قبل اعتمادكِ. بعد التنفيذ تُدخلين نتيجة كل طالبة بعد المعالجة ليُحسب الأثر.</div></div>`;
-    if (!C.students.length) return h + '<p class="muted">لا طالبات لم يتحققن في أي ناتج محتسَب (أو لا مقارنات كافية).</p></section>';
-    h += `<div class="row" style="margin:6px 0"><label>حد الخطة الجماعية (عدد الطالبات)<input type="number" min="2" max="20" class="t-input" id="spMin" value="${S.minGroup}" style="width:70px"></label>
-      <span class="muted small-print">${C.students.length} طالبة تحتاج دعمًا · ${C.groups.length} ناتجًا مشتركًا في الضعف</span></div>`;
-    // خطط جماعية
-    h += `<h4 style="margin:10px 0 4px">خطط جماعية مقترحة</h4>`;
-    h += C.groups.length ? C.groups.map(g => { const p = S.groups[g.qid] || {}, txt = p.text != null ? p.text : suggestGroup(g);
-      return `<div class="card" style="padding:10px;margin:6px 0" data-spg="${esc(g.qid)}"><div class="row"><b class="grow">${esc(g.outcome)}</b>${st(p.status)}</div>
-        <div class="small-print muted">${esc(LN[g.lesson] || g.lesson)} · ${g.ids.length} من ${g.n} · ${esc(g.names.join('، '))}</div>
-        <textarea class="t-input" data-sptx="g" data-spi="${esc(g.qid)}" rows="4" style="width:100%;margin-top:6px">${esc(txt)}</textarea>${decBtns('g', g.qid, p.status)}</div>`; }).join('')
-      : `<p class="muted small-print">لا ناتج اشترك في الضعف فيه ${S.minGroup} طالبات فأكثر.</p>`;
-    // خطط فردية
-    h += `<h4 style="margin:12px 0 4px">خطة/توصية لكل طالبة</h4><div class="t-scroll" style="max-height:420px">`;
-    h += C.students.map(s => { const p = S.plans[s.id] || {}, txt = p.text != null ? p.text : suggestStudent(s);
-      return `<div class="card" style="padding:10px;margin:6px 0" data-sps="${esc(s.id)}"><div class="row"><button class="link" data-sid="${esc(s.id)}"><b>${esc(s.name)}</b></button><span class="muted small-print grow">${esc(s.cls)}</span>${st(p.status)}</div>
-        <ul style="margin:4px 0;padding-inline-start:18px">${s.items.map(i => `<li>${kind(i.kind)} ${esc(i.outcome)} <span class="muted small-print">(${esc(LN[i.lesson] || i.lesson)})</span></li>`).join('')}</ul>
-        <textarea class="t-input" data-sptx="s" data-spi="${esc(s.id)}" rows="${s.items.length >= 3 ? 5 : 3}" style="width:100%">${esc(txt)}</textarea>${decBtns('s', s.id, p.status)}</div>`; }).join('');
-    h += `</div>`;
-    // إدخال النتائج بعد المعالجة
-    const pairs = approvedPairs(C, S);
-    h += `<h3 style="margin:16px 0 4px">ما درجة الطالبة بعد المعالجة؟</h3>`;
-    if (!pairs.length) h += `<p class="muted small-print">يظهر الإدخال للطالبات اللواتي اعتمدتِ خطتهن (الفردية أو الجماعية) فقط. اعتمدي خطة واحدة على الأقل.</p>`;
-    else {
-      h += `<p class="muted small-print">بعد تنفيذ الخطة، سجّلي لكل ناتج: «تحقق» أو «لم يتحقق». يفضَّل قياسه بسؤال <b>مكافئ</b> لا بنفس السؤال حتى لا يُقاس التذكّر. ما لم يُدخَل يُعدّ غير متحقق في حساب إتقان النواتج (ويظهر ضمن «التغطية»).</p>
-        <div class="t-scroll" style="max-height:360px"><table class="t-table"><thead><tr><th>الطالبة</th><th>الناتج</th><th>الخطة</th><th>بعد المعالجة</th></tr></thead><tbody>${pairs.map(p => { const r = S.results[rk(p.sid, p.qid)]; const v = r ? r.v : '';
-        return `<tr><td>${esc(p.name)}</td><td>${esc(p.outcome)}</td><td>${p.via}</td><td><select class="t-input" data-spr="${esc(rk(p.sid, p.qid))}"><option value="">— لم يُقَس</option><option value="1" ${v === 1 ? 'selected' : ''}>تحقق</option><option value="0" ${v === 0 ? 'selected' : ''}>لم يتحقق</option></select></td></tr>`; }).join('')}</tbody></table></div>`;
-    }
-    h += impactHtml(I, esc);
-    return h + '</section>';
+    let h = `<div id="spSec"><section class="panel card" style="margin:16px 0"><h3 style="margin:0 0 4px">دعم الطالبات بعد المقارنة والاختبار البعدي (جميع الأهداف)</h3>
+      <div class="banner info"><div><b>كيف يعمل:</b> يجمع الوكيل الطالبات اللواتي لم يتحققن في ناتج بعد الاختبار البعدي، ويقترح <b>خطة لكل طالبة</b> مبنية على <b>موضع الناتج في كتاب المهارات الرقمية للصف الثالث المتوسط وأنشطته</b> (الوحدتان 1 و2)، و<b>خطة جماعية في جدول</b> عند اشتراك ${S.minGroup} طالبات فأكثر في ناتج واحد. هذه <b>مقترحات عامة</b> لا تشخّص سبب الضعف. اضغطي أيقونة <b>✓</b> لاعتماد الخطة، فيظهر مربع درجة الطالبة بعد المعالجة؛ تُدخلينها ويعتمدها الوكيل ثم يحسب التحسن. لا يُنفَّذ ولا يُحتسب شيء قبل اعتمادكِ.</div></div>`;
+    if (!C.students.length) return h + '<p class="muted">لا طالبات لم يتحققن في أي ناتج محتسَب (أو لا مقارنات كافية).</p></section></div>';
+    const apCnt = Object.values(S.plans).filter(p => p.status === 'approved').length + Object.values(S.groups).filter(p => p.status === 'approved').length;
+    h += `<div class="kpis num" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:8px 0">
+      <div class="panel kpi"><b>${C.students.length}</b><small>طالبة تحتاج دعمًا بعد المقارنة</small></div>
+      <div class="panel kpi"><b>${C.groups.length}</b><small>ناتجًا مشتركًا في الضعف (≥ ${S.minGroup} طالبات)</small></div>
+      <div class="panel kpi"><b>${apCnt}</b><small>خطة معتمدة (فردية وجماعية)</small></div></div>
+      <div class="row" style="margin:6px 0"><label>حد الخطة الجماعية (عدد الطالبات)<input type="number" min="2" max="20" class="t-input" id="spMin" value="${S.minGroup}" style="width:70px"></label></div>`;
+    // خطط جماعية: جدول
+    h += `<h4 style="margin:10px 0 4px">خطط جماعية مقترحة (طالبات اشتركن في الضعف)</h4>`;
+    h += C.groups.length ? `<div class="t-scroll" style="max-height:480px"><table class="t-table sp-table"><thead><tr><th>الناتج</th><th>الطالبات المشتركات</th><th>الخطة الجماعية المقترحة</th><th>اعتماد المعلمة</th></tr></thead><tbody>${C.groups.map(g => {
+        const p = S.groups[g.qid] || {}, txt = p.text != null ? p.text : suggestGroup(g), id = esc(g.qid);
+        let r = `<tr data-spg="${id}"><td><b>${esc(g.outcome)}</b><br><span class="muted small-print">${esc(LN[g.lesson] || g.lesson)}</span>${bookRef(g.qid) ? `<br><span class="sp-book">${esc(bookRef(g.qid))}</span>` : ''}</td><td><span class="pill mid">${g.ids.length} من ${g.n}</span><br><span class="small-print">${esc(g.names.join('، '))}</span></td>
+          <td><textarea class="t-input" data-sptx="g" data-spi="${id}" rows="9" style="min-width:260px">${esc(txt)}</textarea></td><td>${apBtns('g', id, p.status)}</td></tr>`;
+        if (p.status === 'approved') {
+          const ps = g.ids.map((sid, i) => ({ sid, qid: g.qid, name: g.names[i], outcome: g.outcome, lab: g.names[i] }));
+          const conf = ps.filter(x => measured(S.results[rk(x.sid, x.qid)])).length;
+          r += `<tr class="sp-sub"><td colspan="4"><b class="ok-t">تم اعتماد الخطة الجماعية.</b> أدخلي درجة كل طالبة في «${esc(g.outcome)}» بعد المعالجة (حد التحقق ${thr(C.outs[g.qid])}٪):<div class="sp-grid">${ps.map(x => scoreBox(x, S, C, esc)).join('')}</div>${confRow(conf, ps.length, 'g', id)}</td></tr>`;
+        }
+        return r; }).join('')}</tbody></table></div>`
+      : `<p class="muted small-print">لا ناتج اشترك في الضعف فيه ${S.minGroup} طالبات فأكثر؛ تظهر الخطط الفردية أدناه.</p>`;
+    // خطط فردية: جدول
+    h += `<h4 style="margin:14px 0 4px">خطة/توصية مقترحة لكل طالبة</h4><div class="t-scroll" style="max-height:560px"><table class="t-table sp-table"><thead><tr><th>الطالبة</th><th>نواتج لم تتحقق</th><th>الخطة/التوصية المقترحة</th><th>اعتماد المعلمة</th></tr></thead><tbody>${C.students.map(s => {
+      const p = S.plans[s.id] || {}, txt = p.text != null ? p.text : suggestStudent(s), id = esc(s.id);
+      let r = `<tr data-sps="${id}"><td><button type="button" class="link" data-sid="${id}"><b>${esc(s.name)}</b></button><br><span class="muted small-print">${esc(s.cls)}</span></td>
+        <td><ul style="margin:0;padding-inline-start:16px">${s.items.map(i => `<li>${kind(i.kind)} ${esc(i.outcome)} <span class="muted small-print">(${esc(LN[i.lesson] || i.lesson)})</span>${bookRef(i.qid) ? `<br><span class="sp-book">${esc(bookRef(i.qid))}</span>` : ''}</li>`).join('')}</ul></td>
+        <td><textarea class="t-input" data-sptx="s" data-spi="${id}" rows="${Math.min(14, 3 + s.items.length * (s.items.length > 3 ? 2 : 4))}" style="min-width:260px">${esc(txt)}</textarea></td><td>${apBtns('s', id, p.status)}</td></tr>`;
+      if (p.status === 'approved') {
+        const ps = s.items.map(i => ({ sid: s.id, qid: i.qid, name: s.name, outcome: i.outcome })), conf = ps.filter(x => measured(S.results[rk(x.sid, x.qid)])).length;
+        r += `<tr class="sp-sub"><td colspan="4"><b class="ok-t">تم اعتماد الخطة.</b> أدخلي درجة ${esc(s.name)} في كل ناتج بعد المعالجة:<div class="sp-grid">${ps.map(x => scoreBox(x, S, C, esc)).join('')}</div>${confRow(conf, ps.length, 's', id)}</td></tr>`;
+      }
+      return r; }).join('')}</tbody></table></div></section>`;
+    return h + impactHtml(I, S, esc) + '</div>';
   }
-  function impactHtml(I, esc) {
-    let h = `<h3 style="margin:18px 0 4px">ما بعد التوصيات: الأثر المقاس</h3>`;
-    if (!I.pairs) return h + '<p class="muted small-print">لم تُعتمد خطة بعد؛ لا أثر يُحسب.</p>';
-    if (!I.measured) return h + `<p class="muted small-print">اعتُمدت ${I.pairs} حالة (طالبة × ناتج) ولم تُدخلي أي نتيجة بعد المعالجة؛ أدخليها أعلاه ليُحسب الأثر.</p>`;
+  function impactHtml(I, S, esc) {
     const P = v => v == null ? '—' : v + '٪';
-    h += `<div class="row" style="flex-wrap:wrap;gap:10px;margin:6px 0">
-      <div class="card" style="padding:10px"><div class="muted small-print">معدل التعافي</div><b style="font-size:1.4rem">${P(I.recovery)}</b><div class="small-print">${I.won} من ${I.measured} حالة مقيسة تحققت</div></div>
-      <div class="card" style="padding:10px"><div class="muted small-print">تغطية القياس</div><b style="font-size:1.4rem">${P(I.coverage)}</b><div class="small-print">${I.measured} من ${I.pairs} حالة معتمدة</div></div>
-      <div class="card" style="padding:10px"><div class="muted small-print">طالبات أغلقن كل فجواتهن</div><b style="font-size:1.4rem">${I.studentsFull} من ${I.studentsApproved}</b><div class="small-print">(شرطه قياس كل نواتجها الضعيفة)</div></div>
-      ${I.overall ? `<div class="card" style="padding:10px"><div class="muted small-print">إتقان النواتج المعالَجة (مجمَّع)</div><b style="font-size:1.1rem">${P(I.overall.base)} ← ${P(I.overall.post)} ← ${P(I.overall.after)}</b><div class="small-print">الأساس ← البعدي ← بعد التوصيات (ن=${I.overall.n} مقارَنة)</div></div>` : ''}</div>`;
-    h += `<div class="t-scroll"><table class="t-table"><thead><tr><th>الناتج</th><th>الأساس</th><th>البعدي</th><th>بعد التوصيات</th><th>التغير عن البعدي</th><th>أُغلقت الفجوة</th><th>مكسب نسبي</th><th>أثر نحو المستهدف</th><th>مقيس/معتمد</th></tr></thead><tbody>${I.byOut.map(o => `<tr><td>${esc(o.outcome)}</td><td class="num">${P(o.base)}</td><td class="num">${P(o.post)}</td><td class="num">${P(o.after)}</td><td class="num">${o.measured ? sgn(o.gain) + ' نقطة' : '—'}</td><td class="num">${P(o.closed)}</td><td class="num">${P(o.hake)}</td><td class="num">${P(o.roi)}</td><td class="num">${o.measured}/${o.approved}</td></tr>`).join('')}</tbody></table></div>
-      <details style="margin:6px 0"><summary class="small-print"><b>درجة كل طالبة بعد المعالجة</b></summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الطالبة</th><th>نواتج ضعيفة</th><th>معتمدة</th><th>مقيسة</th><th>تحققت</th><th>درجتها بعد المعالجة</th></tr></thead><tbody>${I.stu.map(s => `<tr><td>${esc(s.name)}</td><td class="num">${s.weak}</td><td class="num">${s.approved}</td><td class="num">${s.measured}</td><td class="num">${s.won}</td><td class="num">${P(s.score)}</td></tr>`).join('')}</tbody></table></div></details>
-      <div class="banner info" style="margin:8px 0"><div><b>كيف تُقرأ الأرقام:</b> «معدل التعافي» = المتحقق ÷ المقيس. «بعد التوصيات» = (المتحققات في البعدي + المتحققات بعد المعالجة) ÷ المقارَنات، وغير المقيس يُعدّ غير متحقق. «أُغلقت الفجوة» = المتحققات بعد المعالجة ÷ غير المتحققات في البعدي. «المكسب النسبي» = (بعد التوصيات − البعدي) ÷ (100 − البعدي). «الأثر نحو المستهدف» = التغير ÷ (المستهدف − البعدي).</div></div>
+    let h = `<section class="panel card" style="margin:16px 0"><h3 style="margin:0 0 4px">ما بعد التوصيات: الأثر المقاس</h3>`;
+    if (!I.pairs) return h + '<p class="muted small-print">لم تُعتمد خطة بعد؛ لا أثر يُحسب. اعتمدي خطة بأيقونة ✓ ثم أدخلي الدرجات بعد المعالجة.</p></section>';
+    if (!I.measured) return h + `<p class="muted small-print">اعتُمدت ${I.pairs} حالة (طالبة × ناتج) ولم يعتمد الوكيل أي درجة بعد المعالجة؛ أدخلي الدرجات في الجداول أعلاه ثم اضغطي «اعتماد الدرجات».</p></section>`;
+    h += `<div class="banner info" style="margin:6px 0"><div>يحسب الوكيل أثر تنفيذ التوصيات من الدرجات التي أدخلتِها واعتمدها. النسبة = النواتج المتحققة ÷ النواتج المقارَنة للطالبة. غير المقيس يُعدّ غير متحقق.</div></div>
+      <div class="kpis num" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:8px 0">
+      <div class="panel kpi"><b>${I.studentsMeasured} من ${I.studentsApproved}</b><small>طالبات اعتُمدت درجاتهن بعد المعالجة</small></div>
+      <div class="panel kpi"><b>${P(I.avgBefore)} ← ${P(I.avgAfter)}</b><small>متوسط نسبة تحقق النواتج: قبل الخطة ← بعدها</small></div>
+      <div class="panel kpi"><b>${sgn(I.avgDelta)} نقطة</b><small>متوسط أثر تنفيذ التوصيات</small></div>
+      <div class="panel kpi"><b>${P(I.recovery)}</b><small>معدل التعافي: ${I.won} من ${I.measured} حالة مقيسة تحققت</small></div>
+      <div class="panel kpi"><b>${P(I.coverage)}</b><small>تغطية القياس: ${I.measured} من ${I.pairs} حالة معتمدة</small></div></div>
+      <h4 style="margin:10px 0 4px">أثر الخطة على كل طالبة</h4>
+      <div class="t-scroll" style="max-height:520px"><table class="t-table sp-table"><thead><tr><th>الطالبة</th><th>نسبتها قبل الخطة</th><th>الخطة المعتمدة</th><th>نسبتها بعد الخطة</th><th>الأثر</th></tr></thead><tbody>${I.stu.map(s => `<tr><td><b>${esc(s.name)}</b><br><span class="muted small-print">${esc(s.cls)}</span></td>
+        <td class="num"><b>${P(s.before)}</b><br><span class="muted small-print">${s.passed} من ${s.compared} نواتج</span></td>
+        <td>${s.plans.length ? s.plans.map(p => `<div class="small-print"><span class="pill ok">${p.type}</span> ${p.outcome ? esc(p.outcome) + ': ' : ''}${esc(p.text)}</div>`).join('') : '<span class="muted">—</span>'}</td>
+        <td class="num"><b>${P(s.after)}</b><br><span class="muted small-print">${s.measured ? 'تحقق ' + s.won + ' من ' + s.measured + ' بعد المعالجة' + (s.partial ? ' · قياس جزئي (' + s.measured + '/' + s.approved + ')' : '') : 'بانتظار اعتماد الدرجات'}</span></td>
+        <td class="num">${s.delta == null ? '—' : `<span class="pill ${s.delta > 0 ? 'ok' : s.delta < 0 ? 'low' : 'na'}">${sgn(s.delta)} نقطة</span>`}</td></tr>`).join('')}</tbody></table></div>
+      <details open style="margin:10px 0"><summary class="small-print"><b>تحقق نواتج التعلم قبل الخطة وبعدها (حسب الناتج)</b></summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الناتج</th><th>الأساس</th><th>البعدي (قبل الخطة)</th><th>بعد الخطة</th><th>التغير</th><th>أُغلقت الفجوة</th><th>مكسب نسبي</th><th>أثر نحو المستهدف</th><th>مقيس/معتمد</th></tr></thead><tbody>${I.byOut.map(o => `<tr><td>${esc(o.outcome)}</td><td class="num">${P(o.base)}</td><td class="num">${P(o.post)}</td><td class="num">${P(o.after)}</td><td class="num">${o.measured ? sgn(o.gain) + ' نقطة' : '—'}</td><td class="num">${P(o.closed)}</td><td class="num">${P(o.hake)}</td><td class="num">${P(o.roi)}</td><td class="num">${o.measured}/${o.approved}</td></tr>`).join('')}</tbody></table></div></details>
+      <details style="margin:6px 0"><summary class="small-print"><b>الدرجات المعتمدة بعد المعالجة (${I.detail.length})</b></summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الطالبة</th><th>الناتج</th><th>الدرجة</th><th>حد التحقق</th><th>النتيجة</th></tr></thead><tbody>${I.detail.map(d => `<tr><td>${esc(d.name)}</td><td>${esc(d.outcome)}</td><td class="num">${d.score == null ? '—' : d.score + '٪'}</td><td class="num">${d.target}٪</td><td><span class="pill ${d.ok ? 'ok' : 'low'}">${d.ok ? 'تحقق' : 'لم يتحقق'}</span></td></tr>`).join('')}</tbody></table></div></details>
+      ${I.overall ? `<p class="small-print">إتقان النواتج المعالَجة (مجمَّع): الأساس ${P(I.overall.base)} ← البعدي ${P(I.overall.post)} ← بعد التوصيات ${P(I.overall.after)} (ن=${I.overall.n} مقارَنة).</p>` : ''}
+      <div class="banner info" style="margin:8px 0"><div><b>كيف تُقرأ الأرقام:</b> «معدل التعافي» = المتحقق ÷ المقيس. «أُغلقت الفجوة» = المتحققات بعد المعالجة ÷ غير المتحققات في البعدي. «المكسب النسبي» = (بعد الخطة − البعدي) ÷ (100 − البعدي). «الأثر نحو المستهدف» = التغير ÷ (المستهدف − البعدي).</div></div>
       <div class="banner bad" style="margin:8px 0"><div><b>حدود لا يجوز تجاوزها عند القراءة:</b> (1) لا مجموعة ضابطة، فالأرقام وصفية ولا تُثبت أن الخطة هي السبب. (2) اختير هؤلاء لأنهن الأضعف، وجزء من تحسّنهن متوقع إحصائيًا بلا تدخل (الانحدار نحو المتوسط). (3) إعادة نفس السؤال قد تقيس التذكّر لا التعلّم. ${I.coverage < 100 ? '(4) المقيس ' + I.coverage + '٪ فقط من الحالات المعتمدة؛ معدل التعافي يخص المقيسات وحدها.' : ''}</div></div>
-      <div class="row"><button class="btn gold small" data-sp="csv">تنزيل الأثر المقاس (CSV)</button><button class="btn small" data-sp="log">سجّلي الأثر في سجل الوكيل</button></div>`;
+      <div class="row"><button type="button" class="btn gold small" data-sp="csv">تنزيل الأثر المقاس (CSV)</button><button type="button" class="btn small" data-sp="log">سجّلي الأثر في سجل الوكيل</button></div></section>`;
     return h;
   }
 
   function bind(root, A, set, model, ctx) {
     const sec = root.querySelector('#spSec'); if (!sec || !A) return;
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const S0 = () => get(), C0 = () => collect(A, S0().minGroup);
-    const textOf = (type, id) => { const el = sec.querySelector(`[data-sptx="${type}"][data-spi="${CSS.escape ? CSS.escape(id) : id}"]`); return el ? el.value : null; };
+    const keep = fn => { const y = window.scrollY; fn(); try { (window.requestAnimationFrame || setTimeout)(() => window.scrollTo(0, y)); } catch (e) {} };
+    const textOf = (type, id) => { const els = sec.querySelectorAll('[data-sptx="' + type + '"]'); for (const el of els) if (el.dataset.spi === id) return el.value; return null; };
+    const boxVal = k => { const els = sec.querySelectorAll('[data-spd]'); for (const el of els) if (el.dataset.spd === k) return el.value; return null; };
     sec.querySelectorAll('[data-sptx]').forEach(el => el.onchange = () => { const S = get(), t = el.dataset.sptx, id = el.dataset.spi, box = t === 'g' ? S.groups : S.plans; box[id] = Object.assign({}, box[id] || {}, { text: el.value }); put(S); });
-    const mn = sec.querySelector('#spMin'); if (mn) mn.onchange = () => { const S = get(); S.minGroup = +mn.value; put(S); ctx.render(); };
-    sec.querySelectorAll('[data-spr]').forEach(sel => sel.onchange = () => { const S = get(); if (sel.value === '') delete S.results[sel.dataset.spr]; else S.results[sel.dataset.spr] = { v: +sel.value, at: new Date().toISOString() }; put(S); ctx.render(); });
+    const mn = sec.querySelector('#spMin'); if (mn) mn.onchange = () => { const S = get(); S.minGroup = +mn.value; put(S); keep(() => ctx.render()); };
+    sec.querySelectorAll('[data-spd]').forEach(el => el.onchange = () => { const S = get(); if (el.value === '') delete S.drafts[el.dataset.spd]; else S.drafts[el.dataset.spd] = el.value; put(S); });
     sec.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => ctx.openStudent(b.dataset.sid));
     sec.querySelectorAll('[data-sp]').forEach(b => b.onclick = async () => {
       const a = b.dataset.sp, S = get(), C = collect(A, S.minGroup);
@@ -170,21 +240,40 @@
         box[id] = o; put(S);
         const who = t === 'g' ? ((C.groups.find(g => g.qid === id) || {}).outcome || id) : ((C.students.find(s => s.id === id) || {}).name || id);
         log(a === 'ok' ? 'اعتمدت المعلمة خطة' : a === 'no' ? 'لم تعتمد المعلمة خطة' : 'أُعيدت خطة للانتظار', (t === 'g' ? 'جماعية: ' : 'فردية: ') + who);
-        ctx.render(); return;
+        keep(() => ctx.render()); return;
+      }
+      if (a === 'edit') { const k = b.dataset.spk, r = S.results[k]; if (r) { S.drafts[k] = r.score != null ? String(r.score) : ''; delete S.results[k]; put(S); log('فُتحت درجة للتعديل', k.split('|')[0]); } keep(() => ctx.render()); return; }
+      if (a === 'conf') {
+        const t = b.dataset.spt, id = b.dataset.spi;
+        const keys = t === 'g' ? (C.groups.find(g => g.qid === id) || { ids: [] }).ids.map(sid => rk(sid, id)) : ((C.students.find(s => s.id === id) || { items: [] }).items).map(i => rk(id, i.qid));
+        let ok = 0, bad = 0;
+        keys.forEach(k => {
+          if (measured(S.results[k])) return;
+          const dom = boxVal(k), raw = dom != null ? dom : S.drafts[k];
+          if (raw == null || String(raw).trim() === '') return;
+          const n = Number(raw);
+          if (!isFinite(n) || n < 0 || n > 100) { bad++; return; }
+          S.results[k] = { score: Math.round(n * 10) / 10, confirmed: true, at: new Date().toISOString() }; delete S.drafts[k]; ok++;
+        });
+        put(S);
+        const who = t === 'g' ? ((C.groups.find(g => g.qid === id) || {}).outcome || id) : ((C.students.find(s => s.id === id) || {}).name || id);
+        if (ok) log('اعتمد الوكيل درجات ما بعد المعالجة', (t === 'g' ? 'جماعية: ' : 'فردية: ') + who + ' · ' + ok + ' درجة');
+        ctx.msg(ok ? 'اعتمد الوكيل ' + ok + ' درجة' + (bad ? ' وتجاهل ' + bad + ' قيمة غير صالحة (المسموح من 0 إلى 100).' : '؛ حُسب الأثر أدناه.') : bad ? 'لم يُعتمد شيء: القيمة يجب أن تكون بين 0 و100.' : 'لم يُعتمد شيء: أدخلي الدرجة أولًا.');
+        keep(() => ctx.render()); return;
       }
       const I = impact(C, S);
-      if (a === 'log') { log('الأثر المقاس بعد التوصيات', `معدل التعافي ${I.recovery == null ? '—' : I.recovery + '٪'} (${I.won}/${I.measured}) · تغطية ${I.coverage == null ? '—' : I.coverage + '٪'}` + (I.overall ? ` · إتقان ${I.overall.base}٪←${I.overall.post}٪←${I.overall.after}٪` : '')); ctx.msg('سُجّل الأثر في سجل الوكيل.'); return; }
+      if (a === 'log') { log('الأثر المقاس بعد التوصيات', `طالبات ${I.studentsMeasured}/${I.studentsApproved} · نسبة التحقق ${I.avgBefore == null ? '—' : I.avgBefore + '٪'}←${I.avgAfter == null ? '—' : I.avgAfter + '٪'} · أثر ${I.avgDelta == null ? '—' : sgn(I.avgDelta)} نقطة · تعافٍ ${I.recovery == null ? '—' : I.recovery + '٪'} (${I.won}/${I.measured}) · تغطية ${I.coverage == null ? '—' : I.coverage + '٪'}`); ctx.msg('سُجّل الأثر في سجل الوكيل.'); return; }
       if (a === 'csv') {
-        const head = ['الطالبة', 'الفصل', 'الناتج', 'نوع الخطة', 'بعد المعالجة'];
-        const R = approvedPairs(C, S).map(p => { const r = S.results[rk(p.sid, p.qid)]; return [p.name, p.cls, p.outcome, p.via, r ? (r.v === 1 ? 'تحقق' : 'لم يتحقق') : 'لم يُقَس']; });
-        const sum = [[], ['ملخص'], ['معدل التعافي', I.recovery == null ? '' : I.recovery + '%'], ['تغطية القياس', I.coverage == null ? '' : I.coverage + '%']];
-        if (I.overall) sum.push(['إتقان مجمّع: الأساس / البعدي / بعد التوصيات', I.overall.base + '% / ' + I.overall.post + '% / ' + I.overall.after + '%']);
-        const lines = [head.map(q).join(',')].concat(R.map(r => r.map(q).join(','))).concat(sum.map(r => r.map(q).join(',')));
+        const head = ['الطالبة', 'الفصل', 'نسبتها قبل الخطة %', 'الخطة المعتمدة', 'نسبتها بعد الخطة %', 'الأثر (نقاط)', 'مقيس/معتمد'];
+        const R = I.stu.map(s => [s.name, s.cls, s.before == null ? '' : s.before, s.plans.map(p => p.type + (p.outcome ? ' (' + p.outcome + ')' : '') + ': ' + p.text).join(' | '), s.after == null ? '' : s.after, s.delta == null ? '' : s.delta, s.measured + '/' + s.approved]);
+        const D = [[], ['الدرجات المعتمدة بعد المعالجة'], ['الطالبة', 'الناتج', 'الدرجة %', 'حد التحقق %', 'النتيجة']].concat(I.detail.map(d => [d.name, d.outcome, d.score == null ? '' : d.score, d.target, d.ok ? 'تحقق' : 'لم يتحقق']));
+        const sum = [[], ['ملخص'], ['متوسط النسبة قبل الخطة', I.avgBefore == null ? '' : I.avgBefore + '%'], ['متوسط النسبة بعد الخطة', I.avgAfter == null ? '' : I.avgAfter + '%'], ['متوسط الأثر (نقاط)', I.avgDelta == null ? '' : I.avgDelta], ['معدل التعافي', I.recovery == null ? '' : I.recovery + '%'], ['تغطية القياس', I.coverage == null ? '' : I.coverage + '%']];
+        const lines = [head.map(q).join(',')].concat(R.map(r => r.map(q).join(','))).concat(D.map(r => r.map(q).join(','))).concat(sum.map(r => r.map(q).join(',')));
         await MDQ.saveFile('الأثر_المقاس_بعد_التوصيات.csv', new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
       }
     });
   }
   const wipe = () => { try { localStorage.removeItem(SK); } catch (e) {} };
 
-  MDQ.support = { VERSION, SK, MIN_GROUP, collect, suggestStudent, suggestGroup, approvedPairs, impact, get, put, wipe, html, bind };
+  MDQ.support = { VERSION, SK, MIN_GROUP, bookRef, collect, suggestStudent, suggestGroup, approvedPairs, plansOf, impact, get, put, wipe, html, bind };
 })();

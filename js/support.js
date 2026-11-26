@@ -300,7 +300,7 @@
     const keep = fn => { const y = window.scrollY; fn(); try { (window.requestAnimationFrame || setTimeout)(() => window.scrollTo(0, y)); } catch (e) {} };
     const textOf = (type, id) => { const els = sec.querySelectorAll('[data-sptx="' + type + '"]'); for (const el of els) if (el.dataset.spi === id) return el.value; return null; };
     const boxVal = k => { const els = sec.querySelectorAll('[data-spd]'); for (const el of els) if (el.dataset.spd === k) return el.value; return null; };
-    sec.querySelectorAll('[data-sptx]').forEach(el => el.onchange = () => { const S = get(), t = el.dataset.sptx, id = el.dataset.spi, box = t === 'g' ? S.groups : S.plans; box[id] = Object.assign({}, box[id] || {}, { text: el.value }); put(S); });
+    sec.querySelectorAll('[data-sptx]').forEach(el => el.onchange = () => { const S = get(), t = el.dataset.sptx, id = el.dataset.spi, box = t === 'g' ? S.groups : t === 'i' ? S.ip : S.plans; box[id] = Object.assign({}, box[id] || {}, { text: el.value }); put(S); });
     const mn = sec.querySelector('#spMin'); if (mn) mn.onchange = () => { const S = get(); S.minGroup = +mn.value; put(S); keep(() => ctx.render()); };
     sec.querySelectorAll('[data-spd]').forEach(el => el.onchange = () => { const S = get(); if (el.value === '') delete S.drafts[el.dataset.spd]; else S.drafts[el.dataset.spd] = el.value; put(S); });
     sec.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => ctx.openStudent(b.dataset.sid));

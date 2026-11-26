@@ -232,8 +232,9 @@
         try { P.ingest(await P.readFile(f), f.name); ctx.render(); } catch (e) { ctx.msg(e.message || 'تعذّرت قراءة الملف.'); }
       };
       if (!set) return;
-      if (MDQ.consistency) MDQ.consistency.bind(root, A, set, ctx);
-      try { if (MDQ.support) MDQ.support.bind(root, A, set, model, ctx); } catch (e) {}
+      // دعم الطالبات أولًا ومعزول: أي عطل في وحدة الاتساق لا يُعطّل أزرار الاعتماد والإرسال (كان سببًا لتعطّلها)
+      try { if (MDQ.support) MDQ.support.bind(root, A, set, model, ctx); } catch (e) { try { console.error(e); } catch (x) {} ctx.msg('تعذّر تفعيل أزرار دعم الطالبات: ' + (e && e.message || e)); }
+      try { if (MDQ.consistency) MDQ.consistency.bind(root, A, set, ctx); } catch (e) { try { console.error(e); } catch (x) {} }
       const pv = root.querySelector('#pView'); if (pv) pv.onchange = () => { MDQ.post._view = pv.value; ctx.render(); };
       root.querySelector('#pTarGo').onclick = () => { const v = +root.querySelector('#pTar').value; if (v >= 1 && v <= 100) { P.setTarget(v); ctx.render(); } };
       const pa = root.querySelector('#pAll'); if (pa) pa.onchange = () => root.querySelectorAll('[data-xk]').forEach(c => c.checked = pa.checked);

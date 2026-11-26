@@ -105,4 +105,7 @@ t('اعتماد خطة صف واحد يفتح ذلك الناتج فقط، وا�
   h = S.html(A, {}, {}, x => String(x)); assert(/<th>الطالبة<\/th><th>الناتج<\/th><th>مستوى التحسن<\/th><th>التوصيات<\/th>/.test(h)); assert(/تحسّن جزئي/.test(h)); assert(/أُدرجت/.test(h));
   st = S.get(); st.ip['b|q1'] = { status: 'approved' }; st.results['b|q1'] = { score: 85, confirmed: true }; st.ip['c|q1'] = { status: 'approved' }; st.results['c|q1'] = { score: 30, confirmed: true }; S.put(st);
   const D = S.impact(C, S.get()).detail; assert.strictEqual(D.map(d => d.level.k).sort().join(), 'low,mid,ok'); });
+t('goals-view: تهيئة دعم الطالبات قبل الاتساق ومعزولة بـ try', () => {
+  const g = fs.readFileSync(path.join(__dirname, '../js/goals-view.js'), 'utf8'), a = g.indexOf('MDQ.support.bind'), b = g.indexOf('MDQ.consistency.bind');
+  assert(a > 0 && b > 0 && a < b, 'الترتيب'); assert(/try \{ if \(MDQ\.consistency\) MDQ\.consistency\.bind/.test(g), 'عزل الاتساق'); });
 console.log('نجح: ' + ok + ' اختبارًا');

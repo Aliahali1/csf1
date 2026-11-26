@@ -54,7 +54,7 @@ t('العرض: جدولان وأيقونة اعتماد وفئات اللوحة 
   h = S.html(A, {}, {}, esc);
   assert(/تم اعتماد الخطة/.test(h) && /is-on/.test(h) && /data-sp="reset"/.test(h), 'حالة تم الاعتماد');
   assert(/data-spd="a\|q1"/.test(h) && /حد التحقق 80/.test(h), 'مربع الدرجة بعد الاعتماد'); assert(/اعتماد الدرجات \(الوكيل\)/.test(h));
-  assert(/لم يعتمد الوكيل أي درجة بعد المعالجة/.test(h));
+  assert(/لم تُرسَل أي درجة بعد/.test(h));
   const st2 = S.get(); st2.results['a|q1'] = { score: 88, confirmed: true }; st2.results['b|q1'] = { score: 70, confirmed: true }; S.put(st2);
   h = S.html(A, {}, {}, esc);
   assert(/<th>نسبتها قبل الخطة<\/th><th>الخطة المعتمدة<\/th><th>نسبتها بعد الخطة<\/th>/.test(h), 'أعمدة جدول الأثر'); assert(/اعتمد الوكيل الدرجة/.test(h)); assert(/قياس جزئي/.test(h)); });
@@ -92,4 +92,17 @@ t('الذاكرة: درجة معتمدة لم تتحقق تغيّر الخطة،
 t('اعتماد الوكيل يملأ الذاكرة والمستوى، وتظهر البطاقة وشارة المستوى', () => {
   reset(); const st = S.get(); st.plans.a = { status: 'approved' }; st.results = {}; st.drafts['a|q1'] = '40'; S.put(st);
   let h = S.html(A, {}, {}, x => String(x)); assert(/class="sp-agent"/.test(h) && /<dt>الذاكرة<\/dt>/.test(h) && /sp-lv-int/.test(h) && /دعم مكثف/.test(h)); });
+t('جدول الخطط الفردية: أعمدة وصف لكل (طالبة × ناتج) ونسبة الإخفاق', () => {
+  reset(); const h = S.html(A, {}, {}, x => String(x)), C = S.collect(A, 3), total = C.students.reduce((n, s) => n + s.items.length, 0);
+  assert(/<th>الطالبة<\/th><th>الناتج المخفقة فيه<\/th><th>نسبة الإخفاق<\/th><th>الخطة العلاجية<\/th><th>اعتماد<\/th><th>درجة بعد تنفيذ الخطة<\/th><th>إرسال<\/th>/.test(h));
+  assert.strictEqual((h.match(/data-spi-row=/g) || []).length, total); assert(/60٪/.test(h), 'نسبة إخفاق q1 = 3 من 5'); assert(/disabled/.test(h) && /اعتمدي الخطة أولًا/.test(h)); });
+t('اعتماد خطة صف واحد يفتح ذلك الناتج فقط، والإرسال يُدرج في جدول الأثر بمستوى تحسن وتوصية', () => {
+  reset(); let st = S.get(); st.ip['a|q1'] = { status: 'approved' }; S.put(st);
+  const C = S.collect(A, 3), I0 = S.impact(C, S.get()); assert.strictEqual(I0.pairs, 1);
+  let h = S.html(A, {}, {}, x => String(x)); assert(/data-spd="a\|q1"/.test(h) && !/data-spd="a\|q2"/.test(h) && /data-sp="send"/.test(h));
+  st = S.get(); st.results['a|q1'] = { score: 70, confirmed: true }; S.put(st);
+  const I = S.impact(C, S.get()); assert.strictEqual(I.detail.length, 1); assert.strictEqual(I.detail[0].level.k, 'mid');
+  h = S.html(A, {}, {}, x => String(x)); assert(/<th>الطالبة<\/th><th>الناتج<\/th><th>مستوى التحسن<\/th><th>التوصيات<\/th>/.test(h)); assert(/تحسّن جزئي/.test(h)); assert(/أُدرجت/.test(h));
+  st = S.get(); st.ip['b|q1'] = { status: 'approved' }; st.results['b|q1'] = { score: 85, confirmed: true }; st.ip['c|q1'] = { status: 'approved' }; st.results['c|q1'] = { score: 30, confirmed: true }; S.put(st);
+  const D = S.impact(C, S.get()).detail; assert.strictEqual(D.map(d => d.level.k).sort().join(), 'low,mid,ok'); });
 console.log('نجح: ' + ok + ' اختبارًا');

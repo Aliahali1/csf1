@@ -86,3 +86,9 @@ html[data-theme="dark"] #spSec .sp-book { background: #2B2260; color: #CFC5FF; b
 @media (max-width: 640px) { #spSec .sp-agent dl { grid-template-columns: 1fr; } }
 [data-theme="dark"] #spSec .sp-agent, .dark #spSec .sp-agent { background: #2A2347; border-color: #4A3F7F; color: #E4DEFF; }
 [data-theme="dark"] #spSec .sp-agent dt, .dark #spSec .sp-agent dt { color: #CFC4FF; }
+#spSec .sp-ind td { vertical-align: top; }
+#spSec .sp-in { width: 84px; text-align: center; }
+#spSec .ap-btn.send { width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid #6B4FE0; background: #6B4FE0; color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+#spSec .ap-btn.send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(107,79,224,.35); }
+#spSec .ap-btn.send:disabled { background: #E7E2F7; border-color: #D4C8FA; color: #9A90C8; cursor: not-allowed; }
+#spSec .ap-btn.send:focus-visible { outline: 3px solid #B9A8FF; outline-offset: 2px; }

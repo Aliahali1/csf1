@@ -15,9 +15,10 @@
   window.MDQ = window.MDQ || {};
   const SK = 'mdq.agent.support.v1', VERSION = '1.2.0', MIN_GROUP = 3;
   const LN = { db: 'إنشاء قاعدة البيانات', query: 'الاستعلام والتقارير', device: 'حماية جهاز الحاسب', cyber: 'مقدمة في الأمن السيبراني' };
-  const rd = () => { try { const v = JSON.parse(localStorage.getItem(SK) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };
+  let MEM = null, LSFAIL = false;   // احتياط في الذاكرة إن تعذّر localStorage (وضع خاص/حظر) كي لا يتعطل الاعتماد بصمت
+  const rd = () => { try { const v = JSON.parse(localStorage.getItem(SK) || 'null'); if (!LSFAIL) return v && typeof v === 'object' ? v : null; } catch (e) { LSFAIL = true; } return MEM; };
   const get = () => { const s = rd() || {}; return { plans: s.plans || {}, groups: s.groups || {}, results: s.results || {}, drafts: s.drafts || {}, minGroup: Math.max(2, Math.min(20, Math.round(+s.minGroup || MIN_GROUP))) }; };
-  const put = s => { try { localStorage.setItem(SK, JSON.stringify(s)); } catch (e) {} };
+  const put = s => { MEM = JSON.parse(JSON.stringify(s)); try { localStorage.setItem(SK, JSON.stringify(s)); LSFAIL = false; } catch (e) { LSFAIL = true; } };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('support', ev, d || ''); } catch (e) {} };
   const pct = (a, b) => b ? Math.round(a / b * 100) : null;
   const sgn = v => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v);
@@ -240,7 +241,9 @@
         box[id] = o; put(S);
         const who = t === 'g' ? ((C.groups.find(g => g.qid === id) || {}).outcome || id) : ((C.students.find(s => s.id === id) || {}).name || id);
         log(a === 'ok' ? 'اعتمدت المعلمة خطة' : a === 'no' ? 'لم تعتمد المعلمة خطة' : 'أُعيدت خطة للانتظار', (t === 'g' ? 'جماعية: ' : 'فردية: ') + who);
-        keep(() => ctx.render()); return;
+        keep(() => ctx.render());
+        if (a === 'ok') try { setTimeout(() => { const r = document.querySelector('#spSec'); const el = r && [...r.querySelectorAll('[data-spd]')].find(e => (t === 'g' ? e.dataset.spd.endsWith('|' + id) : e.dataset.spd.startsWith(id + '|'))); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }, 60); } catch (e) {}
+        return;
       }
       if (a === 'edit') { const k = b.dataset.spk, r = S.results[k]; if (r) { S.drafts[k] = r.score != null ? String(r.score) : ''; delete S.results[k]; put(S); log('فُتحت درجة للتعديل', k.split('|')[0]); } keep(() => ctx.render()); return; }
       if (a === 'conf') {
@@ -273,7 +276,7 @@
       }
     });
   }
-  const wipe = () => { try { localStorage.removeItem(SK); } catch (e) {} };
+  const wipe = () => { MEM = null; try { localStorage.removeItem(SK); } catch (e) {} };
 
   MDQ.support = { VERSION, SK, MIN_GROUP, bookRef, collect, suggestStudent, suggestGroup, approvedPairs, plansOf, impact, get, put, wipe, html, bind };
 })();

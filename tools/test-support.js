@@ -74,4 +74,9 @@ t('الخطط تذكر الكتاب (ص وتدريب) مع احتياطي عند
   const C = S3.collect(mk2(k), 3); assert(/ص\d/.test(S3.suggestStudent(C.students[0])) && /تدريب|نشاط/.test(S3.suggestStudent(C.students[0])));
   assert(/ص\d/.test(S3.suggestGroup(C.groups[0])));
   const C2 = S3.collect(mk2('zz-99'), 3); assert(S3.suggestStudent(C2.students[0]).length > 20); });
+t('تعذّر localStorage: الاعتماد يعمل من الذاكرة', () => {
+  const c4 = { window: {}, MDQ: {}, localStorage: { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); }, removeItem() { throw new Error('blocked'); } } }; c4.window = c4; vm.createContext(c4);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/support.js'), 'utf8'), c4); const S4 = c4.MDQ.support;
+  const st = S4.get(); st.plans.a = { status: 'approved' }; S4.put(st); assert.strictEqual(S4.get().plans.a.status, 'approved');
+  const h = S4.html(A, {}, {}, x => String(x)); assert(/data-spd="a\|q1"/.test(h) && /data-spd="a\|q2"/.test(h), 'مربع درجة لكل ناتج أخفقت فيه'); });
 console.log('نجح: ' + ok + ' اختبارًا');

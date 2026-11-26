@@ -13,11 +13,11 @@
    ============================================================ */
 (function () {
   window.MDQ = window.MDQ || {};
-  const SK = 'mdq.agent.support.v1', VERSION = '1.2.0', MIN_GROUP = 3;
+  const SK = 'mdq.agent.support.v1', VERSION = '1.3.0', MIN_GROUP = 3;
   const LN = { db: 'إنشاء قاعدة البيانات', query: 'الاستعلام والتقارير', device: 'حماية جهاز الحاسب', cyber: 'مقدمة في الأمن السيبراني' };
   let MEM = null, LSFAIL = false;   // احتياط في الذاكرة إن تعذّر localStorage (وضع خاص/حظر) كي لا يتعطل الاعتماد بصمت
   const rd = () => { try { const v = JSON.parse(localStorage.getItem(SK) || 'null'); if (!LSFAIL) return v && typeof v === 'object' ? v : null; } catch (e) { LSFAIL = true; } return MEM; };
-  const get = () => { const s = rd() || {}; return { plans: s.plans || {}, groups: s.groups || {}, results: s.results || {}, drafts: s.drafts || {}, minGroup: Math.max(2, Math.min(20, Math.round(+s.minGroup || MIN_GROUP))) }; };
+  const get = () => { const s = rd() || {}; return { plans: s.plans || {}, groups: s.groups || {}, results: s.results || {}, drafts: s.drafts || {}, mem: s.mem || {}, minGroup: Math.max(2, Math.min(20, Math.round(+s.minGroup || MIN_GROUP))) }; };
   const put = s => { MEM = JSON.parse(JSON.stringify(s)); try { localStorage.setItem(SK, JSON.stringify(s)); LSFAIL = false; } catch (e) { LSFAIL = true; } };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('support', ev, d || ''); } catch (e) {} };
   const pct = (a, b) => b ? Math.round(a / b * 100) : null;
@@ -30,6 +30,16 @@
   const TB = () => MDQ.textbook || null;
   /** إشارة مختصرة إلى موضع الناتج في الكتاب (صفحات + أنشطة) أو '' إن لم يوجد ربط */
   const bookRef = qid => { const tb = TB(), e = tb && tb.get(qid); return e ? 'الكتاب: ' + tb.brief(e) : ''; };
+
+  /* ---------- ذاكرة الوكيل الفرعي: مستوى الطالبة وسجل ما بعد المعالجة (محلية، لاتساق الخطط عبر الجولات) ---------- */
+  const lastOf = (mem, sid, qid) => { const h = ((mem || {})[sid] || {}).hist || []; for (let i = h.length - 1; i >= 0; i--) if (h[i].q === qid) return h[i]; return null; };
+  const remember = (S, sid, qid, score, won) => { const m = S.mem[sid] = S.mem[sid] || { hist: [] }; m.hist = (m.hist || []).concat([{ q: qid, score, won: !!won, at: new Date().toISOString() }]).slice(-60); };
+  /** مستوى الدعم (قاعدة إرشادية معلنة): مكثف إن كانت نسبتها قبل الخطة ≤ 25٪ أو لديها 4 نواتج فأكثر؛ متوسط إن لديها ناتجان فأكثر؛ وإلا خفيف */
+  function levelOf(s) {
+    const n = s.items.length, b = s.before == null ? 100 : s.before;
+    return b <= 25 || n >= 4 ? { k: 'int', label: 'دعم مكثف' } : n >= 2 ? { k: 'mid', label: 'دعم متوسط' } : { k: 'low', label: 'دعم خفيف' };
+  }
+  const firstPage = qid => { const tb = TB(), e = tb && tb.get(qid); return e && e.pages && e.pages.length ? e.pages[0] : 9999; };
 
   /* ---------- التجميع: طالبة ← نواتج لم تتحقق بعد البعدي ---------- */
   function collect(A, minGroup) {
@@ -51,16 +61,19 @@
   }
 
   /* ---------- اقتراحات قاعدية (عامة، قابلة للتعديل) ---------- */
-  function suggestStudent(s) {
-    const tb = TB(), n = s.items.length, drops = s.items.filter(i => i.kind === 'drop').length;
+  function suggestStudent(s, mem) {
+    const tb = TB(), n = s.items.length, lv = levelOf(s), drops = s.items.filter(i => i.kind === 'drop').length;
     const lessons = [...new Set(s.items.map(i => i.lesson))], L = lessons.map(l => LN[l] || l).join('، ');
-    const items = s.items.slice().sort((x, y) => x.kind === y.kind ? 0 : x.kind === 'drop' ? -1 : 1);   // من تراجعت أولًا
-    const compact = n > 3, plan = n >= 3 || lessons.length === 1 && n >= 2;
+    const items = s.items.slice().sort((x, y) => lv.k === 'int' ? firstPage(x.qid) - firstPage(y.qid) : x.kind === y.kind ? 0 : x.kind === 'drop' ? -1 : 1);   // المكثف: الأسبق في الكتاب أولًا؛ غيره: من تراجعت أولًا
+    const compact = n > 3 || lv.k === 'int' && n > 2, plan = n >= 3 || lessons.length === 1 && n >= 2;
     const out = [(plan ? 'خطة علاجية فردية' : 'توصية مقترحة') + ` (${n} ${n === 1 ? 'ناتج' : 'نواتج'}${lessons.length === 1 ? ' في درس ' + L : ' في ' + lessons.length + ' دروس'}) مبنية على كتاب المهارات الرقمية للصف الثالث المتوسط:`];
+    out.push(`مستوى الدعم: ${lv.label}` + (lv.k === 'int' ? ' — ابدئي بالناتج 1 ثم 2 فقط في الجلسة الأولى، وأجّلي الباقي لجلسات لاحقة كي لا يتراكم العبء.' : lv.k === 'low' ? ' — نشاط واحد قصير وتحقق ذاتي يكفيان.' : ' — جلسة واحدة قصيرة لكل ناتجين.'));
     items.forEach((i, k) => {
-      const e = tb && tb.get(i.qid), tag = i.kind === 'drop' ? ' (تراجعت)' : '';
-      if (!e) { out.push(`${k + 1}) ${i.outcome}${tag}: راجعي الجزء الخاص بالناتج في ملف درس «${LN[i.lesson] || i.lesson}» ثم أعيدي مرحلته في اللعبة.`); return; }
-      out.push(`${k + 1}) ${i.outcome}${tag}\n   الكتاب: درس «${tb.lessonTitle(e.file)}»، ${tb.pg(e)} — ${e.section}.`
+      const e = tb && tb.get(i.qid), tag = i.kind === 'drop' ? ' (تراجعت)' : '', lo = lastOf(mem, s.id, i.qid);
+      const prev = lo && !lo.won ? `\n   سبقت معالجته ولم يتحقق (${lo.score != null ? lo.score + '٪' : 'لم يتحقق'}): غيّري المدخل (مثال محسوس أو تعلّم ثنائي) وراجعي المتطلب السابق قبل إعادة النشاط.` : '';
+      if (lo && lo.won) { out.push(`${k + 1}) ${i.outcome}${tag}: تحقق بعد معالجة سابقة (${lo.score != null ? lo.score + '٪' : 'تحقق'}) — يكفي سؤال مراجعة متباعد بعد أسبوعين للتأكد من ثباته.`); return; }
+      if (!e) { out.push(`${k + 1}) ${i.outcome}${tag}${prev}\n   راجعي الجزء الخاص بالناتج في ملف درس «${LN[i.lesson] || i.lesson}» ثم أعيدي مرحلته في اللعبة.`); return; }
+      out.push(`${k + 1}) ${i.outcome}${tag}${prev}\n   الكتاب: درس «${tb.lessonTitle(e.file)}»، ${tb.pg(e)} — ${e.section}.`
         + (compact ? '' : `\n   المراجعة: ${e.points}`) + `\n   النشاط: ${tb.act(e)}.` + (compact ? '' : `\n   تحقق: ${e.check}`));
     });
     out.push('طريقة التنفيذ: جلسة قصيرة (10–15 دقيقة) لقراءة المواضع المذكورة ثم تنفيذ نشاط الكتاب، ثم إعادة المرحلة في اللعبة، ثم سؤال مكافئ (لا السؤال نفسه) بعد المعالجة.');
@@ -68,7 +81,7 @@
     if (drops) out.push(`${drops} من نواتجها تحققت قبليًا ثم لم تتحقق بعديًا: راجعي ثبات التعلّم (تكرار متباعد) بدل إعادة التدريس من الصفر.`);
     return out.join('\n');
   }
-  function suggestGroup(g) {
+  function suggestGroup(g, mem) {
     const tb = TB(), e = tb && tb.get(g.qid), L = LN[g.lesson] || g.lesson;
     const out = [`خطة علاجية جماعية (${g.ids.length} طالبات لم يتحققن في هذا الناتج، من ${g.n} مقارَنة):`];
     if (e) {
@@ -79,6 +92,8 @@
     } else {
       out.push(`إعادة تدريس مصغّرة في مجموعة صغيرة (15–20 دقيقة) لناتج درس «${L}» بمثال تطبيقي مختلف عن أمثلة الحصة، ثم تدريب موجَّه، ثم إعادة المرحلة في اللعبة.`);
     }
+    const again = g.ids.filter(id => { const lo = lastOf(mem, id, g.qid); return lo && !lo.won; }).length;
+    if (again) out.push(`${again} منهن سبقت معالجتهن في هذا الناتج ولم يتحققن: غيّري المدخل (مثال محسوس أو تعلّم ثنائي) وأعيدي المتطلب السابق قبل تكرار النشاط.`);
     if (g.drops) out.push(`${g.drops} منهن تحققن قبليًا فتراجعن: ركّزي على سبب التراجع (نسيان/لبس في الصياغة) لا على الشرح من جديد.`);
     out.push('إن تكرر الضعف عند عدد كبير من الصف فقد يكون في أسلوب الشرح أو صياغة السؤال؛ راجعي ذلك قبل تحميل الطالبات المسؤولية.');
     return out.join('\n');
@@ -100,10 +115,10 @@
   /** الخطط المعتمدة لطالبة (للعرض في جدول الأثر) */
   function plansOf(s, C, S) {
     const out = [], pl = S.plans[s.id];
-    if (pl && pl.status === 'approved') out.push({ type: 'فردية', text: short(pl.text != null ? pl.text : suggestStudent(s)) });
+    if (pl && pl.status === 'approved') out.push({ type: 'فردية', text: short(pl.text != null ? pl.text : suggestStudent(s, S.mem)) });
     s.items.forEach(i => {
       const gr = S.groups[i.qid], g = C.groups.find(x => x.qid === i.qid);
-      if (gr && gr.status === 'approved' && g && g.ids.includes(s.id)) out.push({ type: 'جماعية', text: short(gr.text != null ? gr.text : suggestGroup(g)), outcome: i.outcome });
+      if (gr && gr.status === 'approved' && g && g.ids.includes(s.id)) out.push({ type: 'جماعية', text: short(gr.text != null ? gr.text : suggestGroup(g, S.mem)), outcome: i.outcome });
     });
     return out;
   }
@@ -162,6 +177,7 @@
     const kind = k => k === 'drop' ? '<span class="pill low">تراجعت</span>' : '<span class="pill mid">بقيت ضعيفة</span>';
     let h = `<div id="spSec"><section class="panel card" style="margin:16px 0"><h3 style="margin:0 0 4px">دعم الطالبات بعد المقارنة والاختبار البعدي (جميع الأهداف)</h3>
       <div class="banner info"><div><b>كيف يعمل:</b> يجمع الوكيل الطالبات اللواتي لم يتحققن في ناتج بعد الاختبار البعدي، ويقترح <b>خطة لكل طالبة</b> مبنية على <b>موضع الناتج في كتاب المهارات الرقمية للصف الثالث المتوسط وأنشطته</b> (الوحدتان 1 و2)، و<b>خطة جماعية في جدول</b> عند اشتراك ${S.minGroup} طالبات فأكثر في ناتج واحد. هذه <b>مقترحات عامة</b> لا تشخّص سبب الضعف. اضغطي أيقونة <b>✓</b> لاعتماد الخطة، فيظهر مربع درجة الطالبة بعد المعالجة؛ تُدخلينها ويعتمدها الوكيل ثم يحسب التحسن. لا يُنفَّذ ولا يُحتسب شيء قبل اعتمادكِ.</div></div>`;
+    h += agentCard(S);
     if (!C.students.length) return h + '<p class="muted">لا طالبات لم يتحققن في أي ناتج محتسَب (أو لا مقارنات كافية).</p></section></div>';
     const apCnt = Object.values(S.plans).filter(p => p.status === 'approved').length + Object.values(S.groups).filter(p => p.status === 'approved').length;
     h += `<div class="kpis num" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:8px 0">
@@ -172,7 +188,7 @@
     // خطط جماعية: جدول
     h += `<h4 style="margin:10px 0 4px">خطط جماعية مقترحة (طالبات اشتركن في الضعف)</h4>`;
     h += C.groups.length ? `<div class="t-scroll" style="max-height:480px"><table class="t-table sp-table"><thead><tr><th>الناتج</th><th>الطالبات المشتركات</th><th>الخطة الجماعية المقترحة</th><th>اعتماد المعلمة</th></tr></thead><tbody>${C.groups.map(g => {
-        const p = S.groups[g.qid] || {}, txt = p.text != null ? p.text : suggestGroup(g), id = esc(g.qid);
+        const p = S.groups[g.qid] || {}, txt = p.text != null ? p.text : suggestGroup(g, S.mem), id = esc(g.qid);
         let r = `<tr data-spg="${id}"><td><b>${esc(g.outcome)}</b><br><span class="muted small-print">${esc(LN[g.lesson] || g.lesson)}</span>${bookRef(g.qid) ? `<br><span class="sp-book">${esc(bookRef(g.qid))}</span>` : ''}</td><td><span class="pill mid">${g.ids.length} من ${g.n}</span><br><span class="small-print">${esc(g.names.join('، '))}</span></td>
           <td><textarea class="t-input" data-sptx="g" data-spi="${id}" rows="9" style="min-width:260px">${esc(txt)}</textarea></td><td>${apBtns('g', id, p.status)}</td></tr>`;
         if (p.status === 'approved') {
@@ -184,9 +200,9 @@
       : `<p class="muted small-print">لا ناتج اشترك في الضعف فيه ${S.minGroup} طالبات فأكثر؛ تظهر الخطط الفردية أدناه.</p>`;
     // خطط فردية: جدول
     h += `<h4 style="margin:14px 0 4px">خطة/توصية مقترحة لكل طالبة</h4><div class="t-scroll" style="max-height:560px"><table class="t-table sp-table"><thead><tr><th>الطالبة</th><th>نواتج لم تتحقق</th><th>الخطة/التوصية المقترحة</th><th>اعتماد المعلمة</th></tr></thead><tbody>${C.students.map(s => {
-      const p = S.plans[s.id] || {}, txt = p.text != null ? p.text : suggestStudent(s), id = esc(s.id);
-      let r = `<tr data-sps="${id}"><td><button type="button" class="link" data-sid="${id}"><b>${esc(s.name)}</b></button><br><span class="muted small-print">${esc(s.cls)}</span></td>
-        <td><ul style="margin:0;padding-inline-start:16px">${s.items.map(i => `<li>${kind(i.kind)} ${esc(i.outcome)} <span class="muted small-print">(${esc(LN[i.lesson] || i.lesson)})</span>${bookRef(i.qid) ? `<br><span class="sp-book">${esc(bookRef(i.qid))}</span>` : ''}</li>`).join('')}</ul></td>
+      const p = S.plans[s.id] || {}, txt = p.text != null ? p.text : suggestStudent(s, S.mem), id = esc(s.id);
+      let r = `<tr data-sps="${id}"><td><button type="button" class="link" data-sid="${id}"><b>${esc(s.name)}</b></button><br><span class="muted small-print">${esc(s.cls)}</span><br><span class="pill sp-lv-${levelOf(s).k}">${levelOf(s).label}</span></td>
+        <td><ul style="margin:0;padding-inline-start:16px">${s.items.map(i => `<li>${kind(i.kind)} ${esc(i.outcome)} <span class="muted small-print">(${esc(LN[i.lesson] || i.lesson)})</span>${bookRef(i.qid) ? `<br><span class="sp-book">${esc(bookRef(i.qid))}</span>` : ''}${(lo => lo ? `<br><span class="pill ${lo.won ? 'ok' : 'low'}">${lo.won ? 'تحقق بعد معالجة سابقة' : 'سبقت معالجته ولم يتحقق'}</span>` : '')(lastOf(S.mem, s.id, i.qid))}</li>`).join('')}</ul></td>
         <td><textarea class="t-input" data-sptx="s" data-spi="${id}" rows="${Math.min(14, 3 + s.items.length * (s.items.length > 3 ? 2 : 4))}" style="min-width:260px">${esc(txt)}</textarea></td><td>${apBtns('s', id, p.status)}</td></tr>`;
       if (p.status === 'approved') {
         const ps = s.items.map(i => ({ sid: s.id, qid: i.qid, name: s.name, outcome: i.outcome })), conf = ps.filter(x => measured(S.results[rk(x.sid, x.qid)])).length;
@@ -222,6 +238,19 @@
     return h;
   }
 
+  /** بطاقة تعريف الوكيل الفرعي (المثير/الهدف/السياق/القيود/الإجراءات/الأدوات/الذاكرة) — وصف صادق لما ينفّذه الكود فعلًا */
+  function agentCard(S) {
+    const nMem = Object.keys(S.mem || {}).length;
+    const rows = [
+      ['المثير', 'نواتج التعلم التي لم تتحقق فيها الطالبة بعد مقارنة نتائجها (اللعبة ← الاختبار البعدي) في جميع الأهداف المحتسَبة.'],
+      ['الهدف', 'خطة تدخل متكاملة لسدّ الفجوة: فردية لكل طالبة، وجماعية في جدول عند اشتراك ' + S.minGroup + ' طالبات فأكثر في الناتج.'],
+      ['السياق', 'مستشار علاج وتدخلات تعليمية: مهام متمايزة بحسب مستوى الدعم (خفيف / متوسط / مكثف) وتعامل مع الضعف التراكمي بإرجاع الطالبة إلى المتطلب السابق عند تكرار التعثر.'],
+      ['القيود', 'تدخلات قصيرة قابلة للتطبيق بلا أوراق إضافية؛ التزام بالنواتج المخفقة فقط؛ المحتوى من كتاب المهارات الرقمية للصف الثالث المتوسط (الفصل الأول، الوحدتان 1 و2) دون تجاوزه؛ المكثف يبدأ بناتجين فقط.'],
+      ['الإجراءات', 'تحليل النواتج المخفقة ← اقتراح الخطة ← اعتماد المعلمة (✓) ← إدخال الدرجة بعد المعالجة ← اعتماد الوكيل للدرجات ← حساب الأثر المقاس.'],
+      ['الأدوات', 'خريطة الكتاب (js/textbook.js) المستخرجة من ملفات دروس الكتاب بأرقام الصفحات المطبوعة وأنشطته مع صياغة دليل المعلم؛ لا يقرأ الوكيل الملفات لحظيًا ولا يتصل بالإنترنت.'],
+      ['الذاكرة', 'يحفظ في متصفح المعلمة: مستوى كل طالبة، ودرجاتها المعتمدة بعد المعالجة لكل ناتج (' + nMem + ' طالبة مسجَّلة الآن)، ويستخدمها في الجولة التالية: ما تحقق يُراجَع بتباعد، وما تعثر بعد معالجة يُغيَّر مدخله.']];
+    return `<details class="sp-agent"><summary><b>الوكيل الفرعي: وكيل العلاج والتدخل</b> <span class="muted small-print">(المثير · الهدف · السياق · القيود · الإجراءات · الأدوات · الذاكرة)</span></summary><dl>${rows.map(r => `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl><p class="small-print muted">قاعدة مستوى الدعم إرشادية: «مكثف» إن كانت نسبتها قبل الخطة 25٪ فأقل أو لديها 4 نواتج فأكثر، «متوسط» لناتجين فأكثر، وإلا «خفيف». يقترح الوكيل ولا ينفّذ؛ القرار للمعلمة.</p></details>`;
+  }
   function bind(root, A, set, model, ctx) {
     const sec = root.querySelector('#spSec'); if (!sec || !A) return;
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
@@ -238,7 +267,9 @@
         const t = b.dataset.spt, id = b.dataset.spi, box = t === 'g' ? S.groups : S.plans, o = Object.assign({}, box[id] || {});
         const tx = textOf(t, id); if (tx != null) o.text = tx;
         if (a === 'reset') { delete o.status; delete o.approvedAt; } else { o.status = a === 'ok' ? 'approved' : 'rejected'; o.approvedAt = new Date().toISOString(); }
-        box[id] = o; put(S);
+        box[id] = o;
+        if (a === 'ok' && t === 's') { const st0 = C.students.find(x => x.id === id); if (st0) { const m0 = S.mem[id] = S.mem[id] || { hist: [] }; m0.lv = levelOf(st0).label; m0.lvAt = new Date().toISOString(); } }
+        put(S);
         const who = t === 'g' ? ((C.groups.find(g => g.qid === id) || {}).outcome || id) : ((C.students.find(s => s.id === id) || {}).name || id);
         log(a === 'ok' ? 'اعتمدت المعلمة خطة' : a === 'no' ? 'لم تعتمد المعلمة خطة' : 'أُعيدت خطة للانتظار', (t === 'g' ? 'جماعية: ' : 'فردية: ') + who);
         keep(() => ctx.render());
@@ -257,6 +288,7 @@
           const n = Number(raw);
           if (!isFinite(n) || n < 0 || n > 100) { bad++; return; }
           S.results[k] = { score: Math.round(n * 10) / 10, confirmed: true, at: new Date().toISOString() }; delete S.drafts[k]; ok++;
+          const [sid0, qid0] = k.split('|'); remember(S, sid0, qid0, S.results[k].score, S.results[k].score >= thr(C.outs[qid0]));
         });
         put(S);
         const who = t === 'g' ? ((C.groups.find(g => g.qid === id) || {}).outcome || id) : ((C.students.find(s => s.id === id) || {}).name || id);
@@ -278,5 +310,5 @@
   }
   const wipe = () => { MEM = null; try { localStorage.removeItem(SK); } catch (e) {} };
 
-  MDQ.support = { VERSION, SK, MIN_GROUP, bookRef, collect, suggestStudent, suggestGroup, approvedPairs, plansOf, impact, get, put, wipe, html, bind };
+  MDQ.support = { VERSION, SK, MIN_GROUP, bookRef, collect, suggestStudent, suggestGroup, approvedPairs, plansOf, impact, get, put, wipe, html, bind, levelOf, lastOf };
 })();

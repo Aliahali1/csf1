@@ -73,3 +73,16 @@ html[data-theme="dark"] .teacher-mode #spSec .sp-table textarea.t-input, html[da
 #spSec .sp-book { display: inline-block; margin-top: 3px; padding: 1px 9px; border-radius: 999px; background: #EEE8FF; color: #4B3BAE; border: 1px solid #D4C8FA; font-size: .74rem; font-weight: 700; line-height: 1.6; }
 html[data-theme="dark"] #spSec .sp-book { background: #2B2260; color: #CFC5FF; border-color: #473C80; }
 
+
+/* وكيل العلاج الفرعي: بطاقة التعريف ومستويات الدعم */
+#spSec .sp-agent { margin: 8px 0; padding: 8px 14px; border-radius: 14px; background: #F4EFFF; border: 1px solid #D4C8FA; color: #3B2E8A; }
+#spSec .sp-agent summary { cursor: pointer; }
+#spSec .sp-agent dl { display: grid; grid-template-columns: 90px 1fr; gap: 4px 12px; margin: 8px 0; }
+#spSec .sp-agent dt { font-weight: 800; color: #4B3BAE; }
+#spSec .sp-agent dd { margin: 0; }
+#spSec .sp-lv-int { background: #FDE2E8; color: #9B1C3B; }
+#spSec .sp-lv-mid { background: #FFF1D6; color: #8A5A00; }
+#spSec .sp-lv-low { background: #DDF5E6; color: #17663A; }
+@media (max-width: 640px) { #spSec .sp-agent dl { grid-template-columns: 1fr; } }
+[data-theme="dark"] #spSec .sp-agent, .dark #spSec .sp-agent { background: #2A2347; border-color: #4A3F7F; color: #E4DEFF; }
+[data-theme="dark"] #spSec .sp-agent dt, .dark #spSec .sp-agent dt { color: #CFC4FF; }

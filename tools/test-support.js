@@ -79,4 +79,17 @@ t('تعذّر localStorage: الاعتماد يعمل من الذاكرة', () =
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/support.js'), 'utf8'), c4); const S4 = c4.MDQ.support;
   const st = S4.get(); st.plans.a = { status: 'approved' }; S4.put(st); assert.strictEqual(S4.get().plans.a.status, 'approved');
   const h = S4.html(A, {}, {}, x => String(x)); assert(/data-spd="a\|q1"/.test(h) && /data-spd="a\|q2"/.test(h), 'مربع درجة لكل ناتج أخفقت فيه'); });
+t('الوكيل الفرعي: مستوى الدعم والذاكرة وبطاقة التعريف', () => {
+  reset(); const C = S.collect(A, 3), a = C.students.find(s => s.id === 'a');
+  assert.strictEqual(S.levelOf(a).k, 'int');   // نسبتها قبل الخطة 0٪ ≤ 25٪ → مكثف
+}); 
+t('الذاكرة: درجة معتمدة لم تتحقق تغيّر الخطة، والمتحققة تُراجَع بتباعد', () => {
+  reset(); const C = S.collect(A, 3), a = C.students.find(s => s.id === 'a');
+  const mem = { a: { hist: [{ q: 'q1', score: 50, won: false }, { q: 'q2', score: 90, won: true }] } };
+  const txt = S.suggestStudent(a, mem); assert(/سبقت معالجته ولم يتحقق \(50٪\)/.test(txt), 'تعثر سابق'); assert(/تحقق بعد معالجة سابقة \(90٪\)/.test(txt), 'تحقق سابق');
+  assert(!/سبقت معالجته/.test(S.suggestStudent(a, {})), 'بلا ذاكرة');
+  assert(/سبقت معالجتهن/.test(S.suggestGroup(C.groups[0], mem)), 'جماعية'); });
+t('اعتماد الوكيل يملأ الذاكرة والمستوى، وتظهر البطاقة وشارة المستوى', () => {
+  reset(); const st = S.get(); st.plans.a = { status: 'approved' }; st.results = {}; st.drafts['a|q1'] = '40'; S.put(st);
+  let h = S.html(A, {}, {}, x => String(x)); assert(/class="sp-agent"/.test(h) && /<dt>الذاكرة<\/dt>/.test(h) && /sp-lv-int/.test(h) && /دعم مكثف/.test(h)); });
 console.log('نجح: ' + ok + ' اختبارًا');

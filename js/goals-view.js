@@ -78,6 +78,7 @@
           <label><input type="checkbox" id="pAllF"> تحديد الكل</label><button class="btn small" data-xa="copy">انسخي الأسماء</button><button class="btn small" data-xa="csv">قائمة CSV</button><button class="btn small" data-xa="print">قائمة دعم (Word)</button></div>
         <div id="pFail" class="t-scroll" style="max-height:220px"></div>
         <div class="row" style="margin-top:10px"><button class="btn gold small" data-xa="tbl">${I.download} تنزيل جدول الأثر (CSV)</button><button class="btn gold small" data-xa="rec">سجّلي النتائج في سجل الوكيل</button><button class="btn ghost small" data-xa="del">حذف ملف الاختبار البعدي</button></div></section>`;
+      try { h += MDQ.support ? MDQ.support.html(A, set, model, esc) : ''; } catch (e) { h += '<p class="muted small-print">تعذّر عرض قسم دعم الطالبات.</p>'; }
       return h;
     };
 
@@ -232,6 +233,7 @@
       };
       if (!set) return;
       if (MDQ.consistency) MDQ.consistency.bind(root, A, set, ctx);
+      try { if (MDQ.support) MDQ.support.bind(root, A, set, model, ctx); } catch (e) {}
       const pv = root.querySelector('#pView'); if (pv) pv.onchange = () => { MDQ.post._view = pv.value; ctx.render(); };
       root.querySelector('#pTarGo').onclick = () => { const v = +root.querySelector('#pTar').value; if (v >= 1 && v <= 100) { P.setTarget(v); ctx.render(); } };
       const pa = root.querySelector('#pAll'); if (pa) pa.onchange = () => root.querySelectorAll('[data-xk]').forEach(c => c.checked = pa.checked);

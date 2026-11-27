@@ -188,7 +188,26 @@
       if (!opt.reworded) recs.push('تنبيه التذكّر: إن كان سؤال ما بعد المعالجة هو سؤال الموقع أو البعدي نفسه فجزء من التحسّن قد يكون تذكّرًا للإجابة. الأفضل صياغة معادة.');
       recs.push('المقارنة وصفية: اختيار الطالبات لإخفاقهن في البعدي يُضخّم التحسّن بحكم الارتداد نحو المتوسط، ولا يثبت أن الخطة وحدها هي السبب.');
     }
-    return { byQ: list, total: { n, ok, rate }, recs };
+    const weak = weakGroup(rows);
+    if (weak && weak.low.n) {
+      recs.push('الأضعف في الأساس (' + weak.lowN + ' طالبات في الربع الأدنى إتقانًا داخل اللعبة): تحقق ' + weak.low.ok + ' من ' + weak.low.n + ' مقارنات (' + weak.low.rate + '٪)' + (weak.rest.n ? '، مقابل ' + weak.rest.ok + ' من ' + weak.rest.n + ' (' + weak.rest.rate + '٪) لدى الباقيات' : '') + '. ' + (weak.low.n < MINPAIRS ? 'العدد قليل فلا تعمّمي. ' : '') + 'هؤلاء الأكثر عرضة للارتداد نحو المتوسط، فلا يُقرأ ارتفاعهن أثرًا للخطة وحدها.');
+      if (weak.rest.n && weak.low.rate < weak.rest.rate - 15) recs.push('فجوة بين الأضعف أساسًا والباقيات بعد الخطة: فكّري في جلسة قصيرة إضافية أو مجموعة صغيرة لهن بنشاط مختلف من الكتاب.');
+    }
+    return { byQ: list, total: { n, ok, rate }, recs, weak };
+  }
+  /** قوة الطالبة في الأساس: نسبة النواتج التي تحققت لديها داخل اللعبة من كل نواتجها المُختبَرة (ملف الطالبة المحفوظ). null إن لم يتوفر. */
+  function strengthOf(id) {
+    const pr = (load().profiles || {})[id], lv = pr && pr.levels ? Object.values(pr.levels) : [];
+    return lv.length ? lv.filter(x => !x.base).length ? lv.filter(x => x.base).length / lv.length : 1 : null;
+  }
+  /** الربع الأدنى أساسًا (المئين 25 شاملًا للتعادل) مقابل الباقيات، على مقارنات ما بعد الخطة. rows: [{studentId, afterPass}] */
+  function weakGroup(rows) {
+    const st = {}; rows.forEach(r => { if (r.studentId == null) return; const v = strengthOf(r.studentId); if (v != null) st[r.studentId] = v; });
+    const ids = Object.keys(st); if (ids.length < 2) return null;
+    const sorted = ids.map(i => st[i]).sort((a, b) => a - b), cut = sorted[Math.max(0, Math.ceil(ids.length * 0.25) - 1)];
+    const low = new Set(ids.filter(i => st[i] <= cut)); if (low.size === ids.length) return null;
+    const agg = f => { const ps = rows.filter(r => r.studentId != null && st[r.studentId] != null && r.afterPass != null && f(r.studentId)), ok = ps.filter(r => r.afterPass).length; return { n: ps.length, ok, rate: pct(ok, ps.length) }; };
+    return { low: agg(i => low.has(i)), rest: agg(i => !low.has(i)), lowN: low.size, restN: ids.length - low.size, lowIds: [...low], cut: Math.round(cut * 100) };
   }
   function recsFor(o, rate, target, opt) {
     if (!o.n) return ['بانتظار نتائج هذا الناتج.'];
@@ -274,13 +293,14 @@
       }
       h += '</section>';
       /* ---- جدول المتابعة ---- */
+      const WG = weakGroup(approved.map(p => ({ studentId: p.studentId, afterPass: p.afterPass }))), weakIds = new Set(WG ? WG.lowIds : []);
       const rowsT = plans.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar') || a.week - b.week);
       const afterTxt = p => p.status !== 'approved' ? '<span class="muted">الخطة غير معتمدة</span>' : !af ? '<span class="muted">بانتظار الملف</span>' : p.afterPass == null ? '<span class="muted">' + (AF && AF.pending ? 'بانتظار حسم الأسماء' : 'لا نتيجة في الملف') + '</span>' : p.afterPass ? '<span class="pill ok">تحققت</span>' : '<span class="pill low">لم تتحقق</span>';
       h += `<section class="panel card rm"><div class="row"><h2 class="grow" style="margin:0">جدول المتابعة</h2><button class="btn gold small" data-rm="csv">${I.download} تنزيل الجدول (CSV)</button><button class="btn gold small" data-rm="rec">سجّلي النتائج في سجل الوكيل</button></div>
         <div class="t-scroll" style="max-height:480px"><table class="t-table"><thead><tr><th>اسم الطالبة</th><th>درجة إتقانها داخل اللعبة</th><th>درجة إتقانها في الاختبار البعدي</th><th>الخطة المعتمدة</th><th>درجة إتقانها بعد الخطة</th></tr></thead><tbody>
-        ${rowsT.map(p => `<tr><td>${esc(p.name)}<br><small class="muted">${esc(p.outcome.slice(0, 60))}</small></td><td class="num">${esc(gameTxt(p.game))}</td><td><span class="pill low">لم تتحقق</span></td>
+        ${rowsT.map(p => `<tr><td>${esc(p.name)}${weakIds.has(p.studentId) ? ' <span class="pill mid" title="من الربع الأدنى إتقانًا داخل اللعبة">أضعف أساسًا</span>' : ''}<br><small class="muted">${esc(p.outcome.slice(0, 60))}</small></td><td class="num">${esc(gameTxt(p.game))}</td><td><span class="pill low">لم تتحقق</span></td>
           <td><span class="pill ${STAT[p.status][1]}">${STAT[p.status][0]}</span> <small class="muted">${p.steps.length} خطوات · ${esc(bookTxt(p))}</small></td><td>${afterTxt(p)}</td></tr>`).join('')}</tbody></table></div>`;
-      const S = summarize(approved.map(p => ({ qid: p.qid, outcome: p.outcome, afterPass: p.afterPass })), { target: (set && set.target) || 90, reworded: !!(af && af.reworded) });
+      const S = summarize(approved.map(p => ({ qid: p.qid, outcome: p.outcome, studentId: p.studentId, afterPass: p.afterPass })), { target: (set && set.target) || 90, reworded: !!(af && af.reworded) });
       h += `<h3 style="margin:10px 0 4px">ملخص التحسّن</h3><div class="kpis num"><div class="panel kpi"><b>${S.total.n ? S.total.ok + ' من ' + S.total.n : '—'}</b><small>تحققن بعد الخطة من اللواتي أخفقن في البعدي</small></div><div class="panel kpi"><b>${S.total.rate == null ? '—' : '+' + S.total.rate + ' نقطة'}</b><small>تحسّن نسبة التحقق عن أساس 0٪ في البعدي (بحكم اختيار المخفقات فقط)</small></div></div>`;
       if (S.byQ.length) h += `<div class="t-scroll"><table class="t-table"><thead><tr><th>الناتج</th><th>ن</th><th>تحققن</th><th>النسبة</th><th>التوصيات</th></tr></thead><tbody>${S.byQ.map(o => `<tr><td>${esc(o.outcome)}</td><td class="num">${o.n}</td><td class="num">${o.ok}</td><td class="num">${o.rate == null ? '—' : o.rate + '٪'}</td><td><ul style="margin:0;padding-inline-start:16px">${o.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></td></tr>`).join('')}</tbody></table></div>`;
       h += `<h3 style="margin:10px 0 4px">التوصيات</h3><ul>${S.recs.map(r => `<li>${esc(r)}</li>`).join('')}</ul></section>`;
@@ -311,7 +331,7 @@
           ingestAfter(await P().readFile(f[0]), f[0].name); render(); return;
         }
         if (a === 'delafter') { d.after = null; plans.forEach(p => { p.afterPass = null; }); save(); render(); return; }
-        if (a === 'rec') { const S = summarize(plans.filter(p => p.status === 'approved').map(p => ({ qid: p.qid, outcome: p.outcome, afterPass: p.afterPass })), {}); S.byQ.forEach(o => log('نتيجة ما بعد المعالجة: ' + o.qid, 'ن=' + o.n + ' · تحققن ' + o.ok + ' · ' + (o.rate == null ? '—' : o.rate + '٪'))); msg('سُجّلت نتائج ' + S.byQ.length + ' ناتجًا في سجل الوكيل.'); return; }
+        if (a === 'rec') { const S = summarize(plans.filter(p => p.status === 'approved').map(p => ({ qid: p.qid, outcome: p.outcome, studentId: p.studentId, afterPass: p.afterPass })), {}); S.byQ.forEach(o => log('نتيجة ما بعد المعالجة: ' + o.qid, 'ن=' + o.n + ' · تحققن ' + o.ok + ' · ' + (o.rate == null ? '—' : o.rate + '٪'))); if (S.weak && S.weak.low.n) log('أثر الخطط على الأضعف أساسًا', 'ربع أدنى ' + S.weak.lowN + ' طالبات: تحققن ' + S.weak.low.ok + '/' + S.weak.low.n + ' (' + S.weak.low.rate + '٪)' + (S.weak.rest.n ? ' · الباقيات ' + S.weak.rest.ok + '/' + S.weak.rest.n + ' (' + S.weak.rest.rate + '٪)' : '')); msg('سُجّلت نتائج ' + S.byQ.length + ' ناتجًا في سجل الوكيل.'); return; }
         if (a === 'tpl') {
           const ap = plans.filter(p => p.status === 'approved'); if (!ap.length) { msg('اعتمدي خطة واحدة على الأقل أولًا.'); return; }
           const qids = [...new Set(ap.map(p => p.qid))], ids = [...new Set(ap.map(p => p.studentId))];
@@ -342,5 +362,5 @@
   /** زر وكيل الأهداف: يُستدعى من goals-view */
   function sendFromGoals(A, qid, ids) { return send(A, qid, ids); }
 
-  MDQ.remedial = { topFailing, VERSION, KEY, MAXOPEN, load, save, wipe, reset, send, sendFromGoals, buildPlan, designSteps, diagnose, prioritize, gameOf, setSteps, approve, reopen, remove, ingestAfter, computeAfter, summarize, view, kindOf };
+  MDQ.remedial = { topFailing, weakGroup, strengthOf, VERSION, KEY, MAXOPEN, load, save, wipe, reset, send, sendFromGoals, buildPlan, designSteps, diagnose, prioritize, gameOf, setSteps, approve, reopen, remove, ingestAfter, computeAfter, summarize, view, kindOf };
 })();

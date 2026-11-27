@@ -324,7 +324,37 @@
     const mean = a => a.reduce((s, x) => s + x.gain, 0) / a.length;
     const did = t.length && c.length >= 3 ? { t: Math.round(mean(t)), c: Math.round(mean(c)), diff: Math.round(mean(t) - mean(c)), nt: t.length, nc: c.length } : null;
     const cls = MDQ.std ? MDQ.std.byClass(model, [].concat(...out.filter(x => x.counted && x.n >= 8 && !x.ceil).map(x => x.per))) : [];
-    return { ms, tally, rows: out, did, accepted: accepted.length, byClass: cls, notCounted: out.filter(x => !x.counted).length };
+    return { ms, tally, rows: out, did, accepted: accepted.length, byClass: cls, notCounted: out.filter(x => !x.counted).length, equity: equity(out, 90) };
+  }
+  /**
+   * ما وراء المتوسطات (وصفي):
+   * 1) لكل ناتج: عدد ونسبة الطالبات اللاتي بلغن الإتقان في البعدي، وهل بلغت النسبة 90٪ (reach90).
+   * 2) الربع الأدنى مقابل الباقي: تُرتَّب الطالبات بإتقانهن القبلي عبر النواتج المحتسبة (عدد ما تحقق من المُختبَر)،
+   *    والربع الأدنى = من إتقانهن ≤ المئين 25 (قد يزيد على ربع العدد عند التعادل؛ يُعرض عددهن الفعلي). ثم يقارَن أساسهن وبعديهن ومكسبهن بالباقيات.
+   */
+  function equity(rows, target) {
+    const use = rows.filter(r => r.counted !== false && r.n);
+    const by = {};
+    use.forEach(r => r.per.forEach(p => { const id = p.s.studentId, e = by[id] = by[id] || { id, name: p.name, base: 0, post: 0, n: 0 }; e.n++; if (p.base) e.base++; if (p.post) e.post++; }));
+    const stu = Object.values(by).map(e => Object.assign(e, { score: e.base / e.n }));
+    const N = stu.length, T = target || 90;
+    const sorted = stu.map(e => e.score).sort((a, b) => a - b);
+    const cut = N ? sorted[Math.max(0, Math.ceil(N * 0.25) - 1)] : 0;
+    const low = new Set(stu.filter(e => e.score <= cut).map(e => e.id));
+    const allLow = low.size === N;   // كلهن في الربع الأدنى (تعادل كامل): لا مقارنة
+    const agg = ps => { const n = ps.length, b = ps.filter(x => x.base).length, a = ps.filter(x => x.post).length; return { n, base: pctOf(b, n), after: pctOf(a, n), gain: n ? pctOf(a, n) - pctOf(b, n) : null }; };
+    const perOut = use.map(r => {
+      const lo = r.per.filter(p => low.has(p.s.studentId)), re = r.per.filter(p => !low.has(p.s.studentId));
+      const pp = r.per.filter(p => p.post).length;
+      return { qid: r.qid, outcome: r.outcome, lesson: r.lesson, n: r.n, reached: pp, reach: pctOf(pp, r.n), reach90: pctOf(pp, r.n) >= T, low: agg(lo), rest: agg(re) };
+    });
+    const pool = ps => agg(ps);
+    const lowAll = [], restAll = [];
+    use.forEach(r => r.per.forEach(p => (low.has(p.s.studentId) ? lowAll : restAll).push(p)));
+    // الطالبات اللاتي بلغن ≥ T٪ من نواتجهن المحتسبة (بعديًا وقبليًا)
+    const meet = (k) => stu.filter(e => e[k] / e.n * 100 >= T).length;
+    return { N, T, lowN: low.size, restN: N - low.size, cut: Math.round(cut * 100), allLow, perOut, lowAll: pool(lowAll), restAll: pool(restAll),
+      stuReachPost: meet('post'), stuReachBase: meet('base'), outReach90: perOut.filter(x => x.reach90).length, outN: perOut.length };
   }
   function recsFor(r) {
     if (!r.n) return ['لا طالبات مقارَنات لهذا الناتج (لا أساس في الموقع أو لا درجة).'];
@@ -345,5 +375,5 @@
   const setTarget = t => { const s = getSet(); s.target = t; putSet(s); };
   const setClear = () => { try { localStorage.removeItem(SK); } catch (e) {} G().logEvent('post', 'حُذف ملف الاختبار البعدي', ''); };
 
-  MDQ.post = { postQids, POST_QIDS, ingest, analyze, getSet, putSet, setDecide, setTarget, setClear, CEIL, readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
+  MDQ.post = { equity, postQids, POST_QIDS, ingest, analyze, getSet, putSet, setDecide, setTarget, setClear, CEIL, readFile, shape, normAr, similarity, match, grade, detectMode, parseChoice, baselineOf, impact, recommend, row, attach, decide, decideMany, clear, record, SIM_MIN };
 })();

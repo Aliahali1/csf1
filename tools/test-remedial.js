@@ -97,4 +97,29 @@ const TF = R.topFailing(TA);
 ok(TF.length === 2 && TF[0].name === 'أ' && TF[0].fails.length === 2 && TF[1].name === 'ب' && TF[1].fails.length === 1, 'ترتيب الأكثر إخفاقًا ويستثني من لم تخفق والناتج غير المحسوب');
 ok(R.topFailing(null).length === 0 && TF[0].tested === 2, 'حالة فارغة وعدد المُختبَر');
 
+// 7) ما وراء المتوسطات: بلوغ 90٪ والربع الأدنى مقابل الباقي
+const E8 = Array.from({ length: 8 }, (_, i) => mk('E' + i, 'ط' + i));
+const per = (qs) => E8.map((s, i) => ({ s, name: s.name, base: qs(i).base, post: qs(i).post }));
+const ER = [{ qid: 'a', outcome: 'ن1', lesson: 'db', counted: true, n: 8, per: per(i => ({ base: i >= 2, post: i !== 0 })) },
+            { qid: 'b', outcome: 'ن2', lesson: 'db', counted: true, n: 8, per: per(i => ({ base: i >= 2, post: true })) }];
+const EQ = ctx.MDQ.post.equity(ER, 90);
+ok(EQ.N === 8 && EQ.lowN === 2 && EQ.restN === 6, 'الربع الأدنى = أقل طالبتين قبليًا');
+ok(EQ.perOut[0].reached === 7 && EQ.perOut[0].reach === 88 && EQ.perOut[0].reach90 === false && EQ.perOut[1].reach90 === true, 'نسبة من بلغن لكل ناتج وعلامة 90٪');
+ok(EQ.lowAll.base === 0 && EQ.lowAll.after === 75 && EQ.restAll.base === 100 && EQ.restAll.after === 100 && EQ.lowAll.gain === 75, 'مقارنة الأساس والبعدي: الربع الأدنى مقابل الباقي');
+ok(EQ.stuReachPost === 7 && EQ.stuReachBase === 6 && EQ.outReach90 === 1, 'طالبات بلغن 90٪ فأكثر من نواتجهن');
+const tie = ctx.MDQ.post.equity([{ qid: 'a', outcome: 'x', lesson: 'db', counted: true, n: 4, per: E8.slice(0, 4).map(s => ({ s, name: s.name, base: true, post: true })) }], 90);
+ok(tie.allLow === true && tie.restN === 0, 'تعادل كامل: لا ربع أدنى منفصل');
+ok(ctx.MDQ.post.equity([], 90).N === 0, 'بلا بيانات');
+
+// 8) أثر الخطط على الأضعف في الأساس
+reset(); const dd = R.load(); [['W1', [0, 0, 0, 1]], ['W2', [0, 0, 1, 1]], ['W3', [1, 1, 1, 0]], ['W4', [1, 1, 1, 1]], ['W5', [1, 1, 0, 1]], ['W6', [1, 1, 1, 1]], ['W7', [1, 1, 1, 1]], ['W8', [1, 1, 1, 1]]]
+  .forEach(([id, b]) => { dd.profiles[id] = { name: id, levels: b.reduce((m, v, i) => { m['q' + i] = { base: !!v }; return m; }, {}) }; }); R.save();
+ok(R.strengthOf('W1') === 0.25 && R.strengthOf('W4') === 1 && R.strengthOf('nobody') === null, 'قوة الطالبة في الأساس من ملفها');
+const wr = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8'].map((id, i) => ({ qid: 'db-03', outcome: 'x', studentId: id, afterPass: id === 'W1' ? false : id === 'W2' ? true : i % 2 === 0 }));
+const WGx = R.weakGroup(wr);
+ok(WGx && WGx.lowN === 2 && WGx.lowIds.includes('W1') && WGx.lowIds.includes('W2') && WGx.low.n === 2 && WGx.low.ok === 1 && WGx.rest.n === 6, 'الربع الأدنى أساسًا يضم الأضعف');
+const SMx = R.summarize(wr, {});
+ok(SMx.weak && SMx.recs.some(r => r.includes('الأضعف في الأساس') && r.includes('ارتداد')), 'التوصيات تذكر الأضعف أساسًا مع تنبيه الارتداد');
+ok(R.weakGroup([{ studentId: 'W4', afterPass: true }, { studentId: 'W6', afterPass: false }]) === null, 'تعادل كامل: لا مجموعة');
+
 console.log('✔ test-remedial: ' + n + ' فحصًا ناجحًا');

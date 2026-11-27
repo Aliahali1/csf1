@@ -122,7 +122,7 @@
               <div style="min-width:0"><b>${esc(l.stage)}</b><small>المرحلة ${ORD[i]} · ${esc(l.lesson)}</small><div class="files-row">${fileLinks(l)}</div></div>
               <small class="num">${B.activeFor(l.id, s).length} أسئلة</small></div>`).join('')}
           </div>
-          <div class="bar" aria-label="التقدم العام 0%"><i style="width:0%"></i></div>
+          <div class="bar" role="progressbar" aria-label="التقدم العام" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><i style="width:0%"></i></div>
           ${rulesHtml()}
         </aside>
       </section>

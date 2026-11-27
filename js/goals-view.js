@@ -68,6 +68,7 @@
       if (A.did) h += `<div class="banner info" style="margin:8px 0"><div><b>مقارنة داخلية (مجموعة ضابطة بديلة):</b> متوسط تحسّن النواتج التي نفّذتِ عليها تدخلًا = <b>${A.did.t >= 0 ? '+' : ''}${A.did.t}</b> نقطة (${A.did.nt} نواتج)، مقابل <b>${A.did.c >= 0 ? '+' : ''}${A.did.c}</b> للنواتج الأخرى لنفس الطالبات (${A.did.nc} نواتج)؛ الفرق <b>${A.did.diff >= 0 ? '+' : ''}${A.did.diff}</b>. هذا أقرب لأثر التدخل لأن أثر التذكر يمس النوعين معًا.</div></div>`;
       else h += `<p class="muted small-print">المقارنة الداخلية (نواتج التدخل مقابل غيرها) تظهر حين يكون لديكِ هدف مسجّل لناتج واحد على الأقل وثلاثة نواتج أخرى دون السقف.</p>`;
       h += MDQ.consistency ? MDQ.consistency.html(A, set, esc) : '';
+      h += equityHtml(A);
       const okN = A.rows.filter(x => x.counted && x.n >= 8 && x.after >= x.target).length, mN = A.rows.filter(x => x.counted && x.n >= 8).length;
       if (A.notCounted) h += `<div class="banner bad" style="margin:8px 0"><div><b>${A.notCounted} ناتجًا خارج الخلاصة:</b> صياغته في الاختبار البعدي معادة ولم تقرري تكافؤها (أو قرّرتِ أنها تختلف جوهريًا). حدّدي «تكافؤ الصياغتين» في عمود قراركِ لإدخاله؛ هذا حكمكِ التربوي ولا يتخذه الوكيل.</div></div>`;
       if (A.byClass && A.byClass.length > 1) h += `<details style="margin:8px 0"><summary class="small-print"><b>مقارنة الفصول (للإنصاف)</b></summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الفصل</th><th>طالبات</th><th>الأساس</th><th>المتحقق</th><th>الفرق</th></tr></thead><tbody>${A.byClass.map(c => `<tr><td>${esc(c.cls)}</td><td class="num">${c.students}</td><td class="num">${c.base}٪</td><td class="num">${c.after}٪</td><td class="num">${c.gain >= 0 ? '+' : ''}${c.gain}</td></tr>`).join('')}</tbody></table></div><p class="small-print muted">متوسط عبر النواتج المحتسَبة. فرق كبير بين الفصول قد يعود إلى اختلاف التدريس أو العدد القليل لا إلى الطالبات؛ فسّريه قبل أي إجراء.</p></details>`;
@@ -83,6 +84,21 @@
         <div id="pTop" class="t-scroll" style="max-height:300px"></div>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn gold small" data-xa="tbl">${I.download} تنزيل جدول الأثر (CSV)</button><button class="btn gold small" data-xa="rec">سجّلي النتائج في سجل الوكيل</button><button class="btn ghost small" data-xa="del">حذف ملف الاختبار البعدي</button></div></section>`;
       return h;
+    };
+
+    /* ---- ما وراء المتوسطات: نسبة بلوغ 90٪ والربع الأدنى مقابل الباقي (وصفي) ---- */
+    const equityHtml = A => {
+      const E = A && A.equity; if (!E || !E.N) return '';
+      const pc = v => v == null ? '—' : v + '٪', sg = v => v == null ? '—' : (v >= 0 ? '+' : '') + v;
+      const cell = x => x.n ? `${pc(x.base)} ← ${pc(x.after)} <small class="muted">(${sg(x.gain)} · ن=${x.n})</small>` : '—';
+      const warn = E.allLow ? 'لا مقارنة: إتقان القبلي متساوٍ لدى جميع الطالبات فلا يمكن فصل ربع أدنى.' : E.lowN < 5 ? `الربع الأدنى ${E.lowN} طالبات فقط: اقرئي الفروق بحذر، فالنسب هنا تتأرجح بطالبة واحدة.` : '';
+      return `<details class="card" style="margin:10px 0;padding:10px" open><summary><b>ما وراء المتوسطات: من بلغن ${E.T}٪، والربع الأدنى مقابل الباقي</b></summary>
+        <p class="small-print muted">وصفي لا سببي. «بلغن» = طالبات تحقق لديهن الناتج في البعدي. الربع الأدنى = الطالبات الأقل إتقانًا في الأساس (القبلي) عبر النواتج المحتسبة؛ عند التعادل قد يزيد عددهن على ربع العدد، ويُعرض العدد الفعلي. الأضعف قبليًا مرشّحات للارتداد نحو المتوسط، فارتفاعهن لا يثبت أثر التدريس.</p>
+        <div class="banner info" style="margin:6px 0"><div>بلغ ${E.outReach90} من ${E.outN} ناتجًا نسبة ${E.T}٪ من الطالبات. وبلغت ${E.stuReachPost} من ${E.N} طالبات ${E.T}٪ فأكثر من نواتجهن في البعدي (كنّ ${E.stuReachBase} قبليًا).</div></div>
+        ${warn ? `<div class="banner bad" style="margin:6px 0"><div>${esc(warn)}</div></div>` : ''}
+        <div class="t-scroll"><table class="t-table"><caption class="sr-only">مقارنة الربع الأدنى بالباقي لكل ناتج</caption><thead><tr><th scope="col">الناتج</th><th scope="col">بلغن في البعدي</th><th scope="col">الربع الأدنى (${E.lowN})<br><small>أساس ← بعدي</small></th><th scope="col">الباقي (${E.restN})<br><small>أساس ← بعدي</small></th></tr></thead><tbody>
+        <tr><td><b>كل النواتج مجتمعة</b></td><td>—</td><td>${cell(E.lowAll)}</td><td>${cell(E.restAll)}</td></tr>
+        ${E.perOut.map(x => `<tr><td>${esc(x.outcome)}</td><td class="num">${x.reached} من ${x.n} (${pc(x.reach)}) ${x.reach90 ? '<span class="pill ok">بلغت ' + E.T + '٪</span>' : '<span class="pill mid">دون ' + E.T + '٪</span>'}</td><td>${cell(x.low)}</td><td>${cell(x.rest)}</td></tr>`).join('')}</tbody></table></div></details>`;
     };
 
     /* ---- الاختبار البعدي ---- */

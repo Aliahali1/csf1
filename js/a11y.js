@@ -1,7 +1,7 @@
 /* أدوات إمكانية الوصول: حجم الخط، القراءة بصوت عالٍ، تباعد، تباين، إيقاف الحركة. تُحفظ في متصفح المستخدمة فقط. */
 (function () {
   const KEY = 'mdq.a11y.v1', root = document.documentElement;
-  const DEF = { scale: 1, spacing: 'normal', contrast: 'normal', motion: 'on' };
+  const DEF = { scale: 1, spacing: 'normal', contrast: 'normal', motion: 'on', simple: 'auto' };
   let S = Object.assign({}, DEF);
   try { S = Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
@@ -12,7 +12,11 @@
     root.dataset.spacing = S.spacing === 'wide' ? 'wide' : 'normal';
     root.dataset.contrast = S.contrast === 'high' ? 'high' : 'normal';
     root.dataset.motion = S.motion === 'off' ? 'off' : 'on';
+    // العرض المبسّط للجوال: تلقائي على الشاشات الضيقة (≤640px) ما لم تختر الطالبة غير ذلك
+    const narrow = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+    root.dataset.simple = S.simple === 'on' || (S.simple === 'auto' && narrow) ? 'on' : 'off';
   }
+  try { const mq = window.matchMedia('(max-width: 640px)'); (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(() => { apply(); if (typeof refresh === 'function' && panel) refresh(); }); } catch (e) {}
   apply();
 
   const synth = window.speechSynthesis;
@@ -48,6 +52,7 @@
     panel.querySelector('[data-a="dec"]').disabled = S.scale <= 0.85;
     panel.querySelector('[data-a="inc"]').disabled = S.scale >= 1.6;
     [['spacing', 'wide'], ['contrast', 'high'], ['motion', 'off']].forEach(([k, v]) => panel.querySelector(`[data-t="${k}"]`).setAttribute('aria-pressed', String(S[k] === v)));
+    panel.querySelector('[data-t="simple"]').setAttribute('aria-pressed', String(root.dataset.simple === 'on'));
   }
   function build() {
     fab = document.createElement('button'); fab.className = 'a11y-fab'; fab.type = 'button';
@@ -57,6 +62,7 @@
       <div class="a11y-row"><span>حجم الخط</span><button class="ab" data-a="dec" type="button" aria-label="تصغير الخط">أ−</button><b class="a11y-val" aria-live="polite"></b><button class="ab" data-a="inc" type="button" aria-label="تكبير الخط">أ+</button><button class="ab" data-a="reset" type="button">الأصل</button></div>
       <div class="a11y-row"><span>القراءة</span><button class="ab" data-a="read" type="button" aria-pressed="false">🔊 اقرئي لي</button></div>
       <div class="a11y-row"><span>العرض</span><button class="ab" data-t="spacing" type="button">تباعد أوسع</button><button class="ab" data-t="contrast" type="button">تباين عالٍ</button><button class="ab" data-t="motion" type="button">إيقاف الحركة</button></div>
+      <div class="a11y-row"><span>الجوال</span><button class="ab" data-t="simple" type="button" aria-pressed="false">عرض مبسّط (عمود واحد وأزرار أكبر)</button></div>
       <p class="a11y-note">القراءة: تقرأ النص المحدَّد، أو الصفحة إن لم تحدّدي شيئًا. تُحفظ اختياراتكِ على هذا الجهاز فقط.</p><p class="a11y-note" role="status" id="a11yMsg"></p>`;
     document.body.append(fab, panel);
     readBtn = panel.querySelector('[data-a="read"]'); msg = panel.querySelector('#a11yMsg');
@@ -67,6 +73,7 @@
       else if (b.dataset.a === 'dec') S.scale = clamp(S.scale - 0.1);
       else if (b.dataset.a === 'reset') S = Object.assign({}, DEF);
       else if (b.dataset.a === 'read') return readAloud();
+      else if (b.dataset.t === 'simple') { S.simple = root.dataset.simple === 'on' ? 'off' : 'on'; }
       else if (b.dataset.t) { const k = b.dataset.t, on = { spacing: 'wide', contrast: 'high', motion: 'off' }[k], off = DEF[k]; S[k] = S[k] === on ? off : on; }
       apply(); save(); refresh();
     };

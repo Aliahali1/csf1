@@ -86,4 +86,15 @@ ok(Object.keys(TB.GUIDE.TIPS).every(q => TB.get(q)), 'كل تنبيه مربوط
 ok(TB.guideTxt(GD).includes('ص42') && TB.guideTxt(null) === '', 'نص المرجع');
 ok(Object.values(R.load().plans).every(p => p.steps.length === 3 && p.steps.every(s => !/دليل/.test(s.t))), 'لا أنشطة من الدليل: الخطوات من الكتاب');
 
+// 6) الأكثر إخفاقًا في النواتج جميعها
+const mk = (id, nm) => ({ studentId: id, name: nm, className: '3/1' });
+const X = mk('X', 'أ'), Y = mk('Y', 'ب'), Z = mk('Z', 'ج');
+const TA = { rows: [
+  { qid: 'a', outcome: 'ن1', counted: true, per: [{ s: X, name: 'أ', post: false }, { s: Y, name: 'ب', post: false }, { s: Z, name: 'ج', post: true }] },
+  { qid: 'b', outcome: 'ن2', counted: true, per: [{ s: X, name: 'أ', post: false }, { s: Y, name: 'ب', post: true }, { s: Z, name: 'ج', post: true }] },
+  { qid: 'c', outcome: 'ن3', counted: false, per: [{ s: Z, name: 'ج', post: false }] }] };
+const TF = R.topFailing(TA);
+ok(TF.length === 2 && TF[0].name === 'أ' && TF[0].fails.length === 2 && TF[1].name === 'ب' && TF[1].fails.length === 1, 'ترتيب الأكثر إخفاقًا ويستثني من لم تخفق والناتج غير المحسوب');
+ok(R.topFailing(null).length === 0 && TF[0].tested === 2, 'حالة فارغة وعدد المُختبَر');
+
 console.log('✔ test-remedial: ' + n + ' فحصًا ناجحًا');

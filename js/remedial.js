@@ -85,6 +85,14 @@
       || (a.kind === 'procedure' ? 1 : 0) - (b.kind === 'procedure' ? 1 : 0) || LESSON_ORDER.indexOf(a.lesson) - LESSON_ORDER.indexOf(b.lesson));
   }
 
+  /** الطالبات الأكثر إخفاقًا في نواتج البعدي كلها (وصفي): يرتّب بعدد النواتج المخفقة ثم بنسبتها من المُختبَر */
+  function topFailing(A) {
+    if (!A || !A.rows) return [];
+    const m = {};
+    A.rows.forEach(r => { if (r.counted === false) return; (r.per || []).forEach(p => { const id = p.s.studentId, e = m[id] = m[id] || { s: p.s, name: p.name || p.s.name, tested: 0, fails: [] }; e.tested++; if (!p.post) e.fails.push(r.outcome); }); });
+    return Object.values(m).filter(e => e.fails.length).sort((a, b) => b.fails.length - a.fails.length || (b.fails.length / b.tested) - (a.fails.length / a.tested) || String(a.name).localeCompare(String(b.name), 'ar'));
+  }
+
   /**
    * المثير: يستقبل نتيجة تحليل البعدي A ومعرّف الناتج والطالبات المحددات، ويُنشئ خطط كل نواتجهن المخفقة (حتى MAXOPEN مفتوحة).
    * لا يبدأ قبل اكتمال مطابقة الأسماء.
@@ -334,5 +342,5 @@
   /** زر وكيل الأهداف: يُستدعى من goals-view */
   function sendFromGoals(A, qid, ids) { return send(A, qid, ids); }
 
-  MDQ.remedial = { VERSION, KEY, MAXOPEN, load, save, wipe, reset, send, sendFromGoals, buildPlan, designSteps, diagnose, prioritize, gameOf, setSteps, approve, reopen, remove, ingestAfter, computeAfter, summarize, view, kindOf };
+  MDQ.remedial = { topFailing, VERSION, KEY, MAXOPEN, load, save, wipe, reset, send, sendFromGoals, buildPlan, designSteps, diagnose, prioritize, gameOf, setSteps, approve, reopen, remove, ingestAfter, computeAfter, summarize, view, kindOf };
 })();

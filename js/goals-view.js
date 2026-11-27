@@ -77,6 +77,10 @@
         <div class="row"><label>الناتج<select class="t-input" id="pOut">${R.filter(x => x.fail.length).map(x => `<option value="${esc(x.qid)}">${esc(x.outcome.slice(0, 70))} (${x.fail.length})</option>`).join('') || '<option value="">لا طالبات</option>'}</select></label>
           <label><input type="checkbox" id="pAllF"> تحديد الكل</label><button class="btn small" data-xa="copy">انسخي الأسماء</button><button class="btn small" data-xa="csv">قائمة CSV</button><button class="btn small" data-xa="print">قائمة دعم (Word)</button>${(MDQ_CONFIG.FEATURES || {}).remedial && MDQ.remedial ? '<button class="btn gold small" data-xa="rem">إرسال المحددات إلى وكيل الخطط العلاجية</button>' : ''}</div>
         <div id="pFail" class="t-scroll" style="max-height:220px"></div>
+        ${(MDQ_CONFIG.FEATURES || {}).remedial ? `<h3 style="margin:14px 0 4px">الطالبات الأكثر إخفاقًا في النواتج جميعها (حدّدي ثم أرسلي)</h3>
+        <p class="muted small-print">ترتيب الطالبات بعدد النواتج التي لم تتحقق لديهن في الاختبار البعدي من بين كل النواتج المُختبَرة (لا ناتجًا واحدًا). الترتيب وصفي لاقتراح من تبدئين بهن، والقرار لكِ. تُرسل المحدَّدات إلى وكيل الخطط العلاجية ليصمّم خطة لكل ناتج مخفق، وتبقى مقارنة ما بعد المعالجة لهن وحدهن.</p>
+        <div class="row"><label><input type="checkbox" id="pAllTop"> تحديد الكل</label><button class="btn gold small" data-xa="remTop">إرسال المحددات إلى وكيل الخطط العلاجية</button></div>
+        <div id="pTop" class="t-scroll" style="max-height:300px"></div>` : ''}
         <div class="row" style="margin-top:10px"><button class="btn gold small" data-xa="tbl">${I.download} تنزيل جدول الأثر (CSV)</button><button class="btn gold small" data-xa="rec">سجّلي النتائج في سجل الوكيل</button><button class="btn ghost small" data-xa="del">حذف ملف الاختبار البعدي</button></div></section>`;
       return h;
     };
@@ -239,6 +243,14 @@
       const fail = () => { const x = A.rows.find(r => r.qid === (root.querySelector('#pOut') || {}).value); return x ? x.fail : []; };
       const drawFail = () => { const el = root.querySelector('#pFail'), f = fail(); el.innerHTML = f.length ? `<table class="t-table"><tbody>${f.map(p => `<tr data-fs="${esc(p.s.studentId)}"><td><input type="checkbox" data-fk></td><td><button class="linkish" data-sid="${esc(p.s.studentId)}">${esc(p.name)}</button></td><td>${esc(G.normCls(p.s.className))}</td><td>${p.base ? 'كانت متحققة قبليًا' : 'لم تتحقق قبليًا'}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small-print">لا طالبات.</p>';
         el.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => ctx.openStudent(b.dataset.sid)); const pf = root.querySelector('#pAllF'); pf.checked = false; };
+      const topRows = () => MDQ.remedial.topFailing(A);
+      const pTop = root.querySelector('#pTop');
+      if (pTop) {
+        const T = topRows();
+        pTop.innerHTML = T.length ? `<table class="t-table"><thead><tr><th></th><th>اسم الطالبة</th><th>الفصل</th><th>النواتج المخفقة</th><th>الأهداف المخفقة فيها</th></tr></thead><tbody>${T.map(e => `<tr data-ts="${esc(e.s.studentId)}"><td><input type="checkbox" data-tk aria-label="تحديد ${esc(e.name)}"></td><td><button class="linkish" data-sid="${esc(e.s.studentId)}">${esc(e.name)}</button></td><td>${esc(G.normCls(e.s.className))}</td><td class="num">${e.fails.length} من ${e.tested}</td><td><small>${e.fails.map(esc).join(' · ')}</small></td></tr>`).join('')}</tbody></table>` : '<p class="muted small-print">لا طالبات مخفقات في الاختبار البعدي.</p>';
+        pTop.querySelectorAll('[data-sid]').forEach(b => b.onclick = () => ctx.openStudent(b.dataset.sid));
+        const pt = root.querySelector('#pAllTop'); if (pt) pt.onchange = () => pTop.querySelectorAll('[data-tk]').forEach(c => c.checked = pt.checked);
+      }
       const po = root.querySelector('#pOut'); if (po) { po.onchange = drawFail; drawFail(); root.querySelector('#pAllF').onchange = e => root.querySelectorAll('[data-fk]').forEach(c => c.checked = e.target.checked); }
       root.querySelectorAll('[data-xa]').forEach(b => b.onclick = async () => {
         const a = b.dataset.xa;
@@ -247,6 +259,11 @@
           const ent = []; let skip = 0; trs.forEach(tr => { const m = A.ms.find(z => z.row.key === tr.dataset.xr); if (!m) return; if (a === 'x') ent.push({ key: m.row.key, val: 'x' }); else if (m.status === 'similar' && m.cands.length) ent.push({ key: m.row.key, val: m.cands[0].s.studentId }); else skip++; });
           if (ent.length) P.setDecide(ent, a === 'x' ? 'استبعدت المعلمة مجموعة' : 'أقرّت المعلمة مطابقة مجموعة');
           if (skip) ctx.msg(skip + ' اسم لا مرشح واضحًا له (مكرر أو غير مطابق): اختاري له يدويًا.'); ctx.render(); return;
+        }
+        if (a === 'remTop') {
+          const ids = [...root.querySelectorAll('[data-tk]')].filter(c => c.checked).map(c => c.closest('tr').dataset.ts); if (!ids.length) { ctx.msg('حدّدي طالبة واحدة على الأقل.'); return; }
+          const r = MDQ.remedial.send(A, '', ids); ctx.msg(r.msg);
+          if (r.ok && ctx.goto) ctx.goto('remedial'); return;
         }
         if (a === 'rem') {
           const ids = [...root.querySelectorAll('[data-fk]')].filter(c => c.checked).map(c => c.closest('tr').dataset.fs); if (!ids.length) { ctx.msg('حدّدي طالبة واحدة على الأقل.'); return; }

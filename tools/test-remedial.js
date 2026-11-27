@@ -75,4 +75,15 @@ const pl = R.load().plans; ok(pl['S1|db-03|0'].afterPass === true && pl['S1|qr-0
 R.load().after.decisions[Object.keys(R.load().after.decisions)[0] || 'r4'] = 'S3'; R.save();
 AF = R.computeAfter(model, null); ok(AF.pending === 0 && AF.notPlanned === 1, 'بعد القرار: مطابقة ولا خطة معتمدة لها فلا تدخل الحساب');
 
+// 5) دليل المعلم مصدرًا ثانيًا
+reset(); R.send(A, 'db-03', ['S1']);
+const GD = TB.guideFor('db-06'), gp = R.load().plans['S1|db-03|0'];
+ok(GD && GD.notes === 42 && GD.steps[0] === 43 && GD.solutions[1] === 51 && /أساسي/.test(GD.tip), 'دليل المعلم: صفحات درس قواعد البيانات وتنبيه المفتاح الأساسي');
+ok(gp.guide && gp.guide.notes === 42 && gp.guide.tip.length > 10, 'الخطة تحمل مرجع دليل المعلم');
+ok(TB.guideFor('zz-99') === null, 'لا دليل لناتج غير موجود');
+ok(TB.covered.every(q => { const g = TB.guideFor(q); return g && g.notes && g.steps.length === 2 && g.solutions.length === 2; }), 'كل ناتج مغطّى له مرجع في الدليل');
+ok(Object.keys(TB.GUIDE.TIPS).every(q => TB.get(q)), 'كل تنبيه مربوط بناتج موجود');
+ok(TB.guideTxt(GD).includes('ص42') && TB.guideTxt(null) === '', 'نص المرجع');
+ok(Object.values(R.load().plans).every(p => p.steps.length === 3 && p.steps.every(s => !/دليل/.test(s.t))), 'لا أنشطة من الدليل: الخطوات من الكتاب');
+
 console.log('✔ test-remedial: ' + n + ' فحصًا ناجحًا');

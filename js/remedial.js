@@ -2,7 +2,7 @@
    وكيل الخطط العلاجية (للمعلمة فقط) — مستوى الاستقلالية 1: يحلّل ويقترح ولا ينفّذ، والقرار للمعلمة.
    - المثير: زر «إرسال المحددات إلى وكيل الخطط العلاجية» في قسم «طالبات يُقترح دعمهن في هذا الناتج» بوكيل الأهداف.
    - يأخذ الطالبات المحدَّدات ويحلّل نواتجهن المخفقة في البعدي كلها، ويصمّم لكل طالبة خطة (حتى 3 خطوات لكل ناتج)
-     من الكتاب المدرسي فقط (remedial-data.js). لا يخترع محتوى: إن لم يجد في الكتاب ما يخدم الناتج يقول ذلك.
+     من الكتاب المدرسي (remedial-data.js)، مع الرجوع إلى دليل المعلم الصادر عن وزارة التعليم لإرشاد المعلمة (تنبيهات «نقاط مهمة» وصفحات خطوات التنفيذ وحلول التدريبات) دون أن يضيف أنشطة منه. لا يخترع محتوى: إن لم يجد في الكتاب ما يخدم الناتج يقول ذلك.
    - الخطة قابلة للتعديل قبل الاعتماد؛ الاعتماد يقفلها ويُسجَّل، وإعادة الفتح تُسجَّل.
    - بعد المعالجة: ترفع المعلمة ملف إجابات الطالبات، فيطابق الأسماء بقواعد وكيل الأهداف نفسها (ويتوقف عند المشتبه)،
      ثم يقارن بنتيجة البعدي ويحسب التحسّن والتوصيات.
@@ -68,7 +68,7 @@
       { t: e.check, min: STEP_MIN[2] }
     ];
     const note = attempt > 0 && acts.length <= 1 ? 'لا يتوفر في الكتاب نشاط بديل لهذا الناتج؛ غيّري طريقة الشرح (نظيرة أو مجموعة صغيرة) بدل تكرار النشاط نفسه.' : '';
-    return { book: { file: e.file, title: L.title || e.file, unit: L.unit || '', pages: e.pages, section: e.section }, steps, note };
+    return { book: { file: e.file, title: L.title || e.file, unit: L.unit || '', pages: e.pages, section: e.section }, guide: MDQ.textbook.guideFor(qid), steps, note };
   }
 
   /** يبني خطة طالبة لناتج؛ attempt = رقم المحاولة العلاجية (0 للأولى) */
@@ -76,7 +76,7 @@
     const d = designSteps(o.qid, attempt), r = rowOf(o.qid);
     return { key: key(stu.studentId, o.qid, attempt), studentId: stu.studentId, name: stu.name, cls: stu.className || '', qid: o.qid, outcome: o.outcome || (r && r.outcome) || o.qid,
       lesson: o.lesson || (r && r.lesson) || '', kind: kindOf(o.qid), week, attempt, game: o.game, base: !!o.base, post: false, diagnosis: diagnose(o.game, o.base),
-      book: d.book, steps: d.steps, note: d.note, status: 'draft', createdAt: now(), editedAt: null, approvedAt: null, afterPass: null };
+      book: d.book, guide: d.guide, steps: d.steps, note: d.note, status: 'draft', createdAt: now(), editedAt: null, approvedAt: null, afterPass: null };
   }
 
   /** ترتيب أولويات النواتج لطالبة: المختار أولًا، ثم الضعف المستمر، ثم المفهوم قبل الإجراء، ثم ترتيب الدروس */
@@ -209,7 +209,7 @@
     const approved = plans.filter(p => p.status === 'approved');
     const qByStu = id => plansOf(id).sort(wkOrder);
     let h = `<section class="panel card rm" id="rmTop"><h2>وكيل الخطط العلاجية</h2>
-      <div class="banner info" style="margin:6px 0"><div><b>بطاقة الوكيل:</b> وكيل محدود بمحرك قواعد لا نموذج لغوي · استقلالية 1: يقترح ولا ينفّذ والقرار للمعلمة · مصدره الكتاب المدرسي لمادة المهارات الرقمية (الصف الثالث المتوسط، الفصل الأول، الوحدتان 1 و2) فقط · البيانات تبقى في هذا المتصفح ولا تُرسل لأي جهة · لا يعدّل درجات الموقع.</div></div>
+      <div class="banner info" style="margin:6px 0"><div><b>بطاقة الوكيل:</b> وكيل محدود بمحرك قواعد لا نموذج لغوي · استقلالية 1: يقترح ولا ينفّذ والقرار للمعلمة · مصدره الكتاب المدرسي لمادة المهارات الرقمية (الصف الثالث المتوسط، الفصل الأول، الوحدتان 1 و2) ودليل المعلم الصادر عن وزارة التعليم (للإرشاد، لا لأنشطة من خارج الكتاب) · البيانات تبقى في هذا المتصفح ولا تُرسل لأي جهة · لا يعدّل درجات الموقع.</div></div>
       ${memOnly ? '<div class="banner bad" style="margin:6px 0"><div>تعذّر الحفظ في المتصفح: ما تفعلينه محفوظ في هذه الجلسة فقط؛ نزّلي الجدول قبل إغلاق الصفحة.</div></div>' : ''}
       <details><summary class="muted small-print">كيف يعمل الوكيل؟</summary><ol class="small-print"><li><b>المثير:</b> تحدّدين طالبات في «طالبات يُقترح دعمهن في هذا الناتج» بوكيل الأهداف ثم «إرسال المحددات».</li>
         <li><b>التحليل:</b> يقارن لكل طالبة نتيجتها في اللعبة بالبعدي في كل النواتج ويستخرج المخفقة.</li>
@@ -234,6 +234,7 @@
               <div class="row"><button class="btn gold small" data-rm="savestep">احفظي التعديل</button><button class="btn ghost small" data-rm="canceledit">إلغاء</button></div>`
               : `<ol class="rm-steps">${p.steps.map(s => `<li>${esc(s.t)} <span class="muted small-print">(${s.min} د)</span></li>`).join('')}</ol>`) : `<div class="banner info" style="margin:4px 0"><div>${esc(p.note)}</div></div>`}
             ${p.note && p.steps.length ? `<p class="small-print muted">${esc(p.note)}</p>` : ''}
+            ${(() => { const g = p.guide || (MDQ.textbook && MDQ.textbook.guideFor(p.qid)); return g ? `<p class="small-print" style="margin:2px 0"><b>من دليل المعلم:</b> ${g.tip ? esc(g.tip) + ' · ' : ''}<span class="muted">${esc(MDQ.textbook.guideTxt(g))}</span></p>` : ''; })()}
             <p class="muted small-print" style="margin:2px 0">الموضع: ${esc(bookTxt(p))} · المدة: ${p.steps.reduce((s, x) => s + x.min, 0)} دقيقة${p.status === 'approved' ? ' · اعتُمدت ' + esc(fmtT(T, p.approvedAt)) : ''}</p>
             <div class="row">${p.status === 'approved' ? '<button class="btn ghost small" data-rm="reopen">إعادة فتح للتعديل</button>' : `<button class="btn small" data-rm="edit">تعديل الخطة</button><button class="btn ghost small" data-rm="del">حذف المسودة</button>`}</div></div>`;
         });

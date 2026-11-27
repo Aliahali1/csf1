@@ -7,7 +7,7 @@
 (function () {
   window.MDQ = window.MDQ || {};
   const EK = 'mdq.agent.equiv.v1', DK = 'mdq.agent.decisions.v1', SK = 'mdq.agent.stopped.v1';
-  const KEYS = ['mdq.agent.goals.v1', 'mdq.agent.goallog.v1', 'mdq.agent.materials.v1', 'mdq.agent.postset.v1', EK, DK, 'mdq.agent.consist.v1', 'mdq.agent.support.v1'];
+  const KEYS = ['mdq.agent.goals.v1', 'mdq.agent.goallog.v1', 'mdq.agent.materials.v1', 'mdq.agent.postset.v1', EK, DK, 'mdq.agent.consist.v1', 'mdq.agent.support.v1', 'mdq.agent.remedial.v1'];
   const rd = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } };
   const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('std', ev, d || ''); } catch (e) {} };

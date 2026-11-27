@@ -75,7 +75,7 @@
         <div class="banner info" style="margin:8px 0"><div><b>تنبيه قراءة:</b> الاختبار البعدي بنفس أسئلة الموقع، فجزء من التحسّن قد يكون تذكّرًا للإجابة لا تعلّمًا؛ والمقارنة وصفية ولا تثبت أن التدخل وحده هو السبب. النواتج المتحققة قبليًا لا تُظهر تحسّنًا بحكم السقف.</div></div>
         <h3 style="margin:10px 0 4px">طالبات يُقترح دعمهن في هذا الناتج (حدّدي ثم نفّذي)</h3>
         <div class="row"><label>الناتج<select class="t-input" id="pOut">${R.filter(x => x.fail.length).map(x => `<option value="${esc(x.qid)}">${esc(x.outcome.slice(0, 70))} (${x.fail.length})</option>`).join('') || '<option value="">لا طالبات</option>'}</select></label>
-          <label><input type="checkbox" id="pAllF"> تحديد الكل</label><button class="btn small" data-xa="copy">انسخي الأسماء</button><button class="btn small" data-xa="csv">قائمة CSV</button><button class="btn small" data-xa="print">قائمة دعم (Word)</button></div>
+          <label><input type="checkbox" id="pAllF"> تحديد الكل</label><button class="btn small" data-xa="copy">انسخي الأسماء</button><button class="btn small" data-xa="csv">قائمة CSV</button><button class="btn small" data-xa="print">قائمة دعم (Word)</button>${(MDQ_CONFIG.FEATURES || {}).remedial && MDQ.remedial ? '<button class="btn gold small" data-xa="rem">إرسال المحددات إلى وكيل الخطط العلاجية</button>' : ''}</div>
         <div id="pFail" class="t-scroll" style="max-height:220px"></div>
         <div class="row" style="margin-top:10px"><button class="btn gold small" data-xa="tbl">${I.download} تنزيل جدول الأثر (CSV)</button><button class="btn gold small" data-xa="rec">سجّلي النتائج في سجل الوكيل</button><button class="btn ghost small" data-xa="del">حذف ملف الاختبار البعدي</button></div></section>`;
       return h;
@@ -247,6 +247,11 @@
           const ent = []; let skip = 0; trs.forEach(tr => { const m = A.ms.find(z => z.row.key === tr.dataset.xr); if (!m) return; if (a === 'x') ent.push({ key: m.row.key, val: 'x' }); else if (m.status === 'similar' && m.cands.length) ent.push({ key: m.row.key, val: m.cands[0].s.studentId }); else skip++; });
           if (ent.length) P.setDecide(ent, a === 'x' ? 'استبعدت المعلمة مجموعة' : 'أقرّت المعلمة مطابقة مجموعة');
           if (skip) ctx.msg(skip + ' اسم لا مرشح واضحًا له (مكرر أو غير مطابق): اختاري له يدويًا.'); ctx.render(); return;
+        }
+        if (a === 'rem') {
+          const ids = [...root.querySelectorAll('[data-fk]')].filter(c => c.checked).map(c => c.closest('tr').dataset.fs); if (!ids.length) { ctx.msg('حدّدي طالبة واحدة على الأقل.'); return; }
+          const r = MDQ.remedial.send(A, root.querySelector('#pOut').value, ids); ctx.msg(r.msg);
+          if (r.ok && ctx.goto) ctx.goto('remedial'); return;
         }
         if (a === 'copy' || a === 'csv' || a === 'print') {
           const sel = [...root.querySelectorAll('[data-fk]')].filter(c => c.checked).map(c => c.closest('tr')).map(tr => ({ name: tr.children[1].textContent.trim(), cls: tr.children[2].textContent.trim() }));

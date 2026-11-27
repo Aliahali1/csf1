@@ -42,3 +42,14 @@ html[data-theme="dark"] .teacher-mode .t-table tbody tr:hover td { background: #
 
 /* نصوص وأزرار التنقل التي تقع مباشرة فوق الخلفية: شريط معتم ليسهل قراءتها */
 .teacher-mode #tbody > p, .teacher-mode #tbody > .row, .teacher-mode #tbody > h2, .teacher-mode #tbody > h3, .teacher-mode #tbody > .pager { background: var(--surface); color: var(--ink, #2B2245); padding: 8px 14px; border-radius: 14px; box-shadow: var(--shadow); margin-block: 8px; }
+
+/* وكيل الخطط العلاجية */
+.rm .rm-stu { border: 1px solid var(--line, #d9d4c7); border-radius: 12px; padding: 10px 12px; margin: 10px 0; background: #fffdf8; }
+.rm .rm-plan { border-top: 1px dashed var(--line, #d9d4c7); padding: 8px 0; margin-top: 8px; }
+.rm .rm-steps { margin: 4px 0; padding-inline-start: 20px; }
+.rm .rm-steps li { margin: 4px 0; }
+.rm-ok { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #2e7d32; background: #fff; color: #2e7d32; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.rm-ok:hover:not(:disabled) { background: #e8f5e9; }
+.rm-ok[aria-pressed="true"], .rm-ok:disabled { background: #2e7d32; color: #fff; cursor: default; }
+.rm-ok:focus-visible { outline: 3px solid #c9a227; outline-offset: 2px; }
+.rm .t-table { background: #fff; }

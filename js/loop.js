@@ -101,6 +101,25 @@
     log('إحالة حالة إلى المعلمة', (name || id) + ' · ' + String(outcome || qid).slice(0, 40)); return e;
   }
 
+  /** يضيف إلى الحلقات الخطط التي أُنشئت قبل وجودها (دون سجل دورات)، ويُحتسب أسلوبها «الكتاب» ونتيجتها المعروفة في الذاكرة. آمن للتكرار. */
+  function backfill(plans) {
+    const d = load(); let added = 0;
+    (plans || []).slice().sort((a, b) => a.attempt - b.attempt).forEach(p => {
+      const k = epKey(p.studentId, p.qid), e = d.episodes[k] = d.episodes[k] || { studentId: p.studentId, name: p.name, qid: p.qid, outcome: p.outcome, kind: p.kind, status: 'open', cycles: [], openedAt: now() };
+      if (e.cycles.some(c => c.planKey === p.key)) return;
+      const strategy = p.strategy || 'book', res = p.status === 'approved' && p.afterPass != null ? !!p.afterPass : null;
+      e.cycles.push({ n: e.cycles.length + 1, planKey: p.key, strategy, rationale: p.rationale || 'خطة سابقة لإصدار الحلقة (احتُسبت بأسلوب الكتاب)', at: p.createdAt || now(), result: res, legacy: !p.strategy }); added++;
+      if (res != null) { const kind = (e.kind === 'procedure' ? 'procedure' : 'concept'), z = d.strat[kind][strategy] = d.strat[kind][strategy] || { t: 0, s: 0 }; z.t++; if (res) z.s++; if (res) { e.status = 'mastered'; e.closedAt = now(); } else if (e.cycles.filter(x => x.result === false).length >= d.cfg.maxCycles) { e.status = 'referred'; e.closedAt = now(); e.reason = 'بلغت الحد الأقصى من الدورات ' + d.cfg.maxCycles + ' دون تحقق'; } }
+    });
+    if (added) { save(); log('استكمال سجل الدورات من خطط سابقة', added + ' دورة'); }
+    return added;
+  }
+  /** يحذف دورة مسودة أُعيد توليدها */
+  function dropCycle(id, qid, planKey) {
+    const d = load(), k = epKey(id, qid), e = d.episodes[k]; if (!e) return; e.cycles = e.cycles.filter(c => c.planKey !== planKey).map((c, i) => Object.assign(c, { n: i + 1 }));
+    if (!e.cycles.length) delete d.episodes[k]; save();
+  }
+
   /** يقرأ نتائج الخطط المعتمدة (afterPass) ويحدّث الحلقات والذاكرة. دالة قابلة للتكرار دون ازدواج. */
   function observe(plans) {
     const d = load(); let updated = 0, mastered = 0, failed = 0, referred = 0;
@@ -171,7 +190,7 @@
     const st = kinds.map(([k, lb]) => STRATS.map(s => { const z = d.strat[k][s.id]; return z ? `<tr><td>${lb}</td><td>${esc(s.label)}</td><td class="num">${z.t}</td><td class="num">${z.s}</td><td class="num">${Math.round(z.s / z.t * 100)}٪</td></tr>` : ''; }).join('')).join('');
     const prop = proposeGoals();
     const stLabel = { open: ['مفتوحة', 'mid'], mastered: ['تحققت', 'ok'], referred: ['أُحيلت إليكِ', 'low'] };
-    return `<section class="panel card rm" id="lpTop"><div class="row"><h2 class="grow" style="margin:0">حلقة المتابعة (الدورات)</h2><label class="small-print">أقصى دورات للناتج<input type="number" id="lpMax" min="1" max="5" value="${d.cfg.maxCycles}" class="t-input" style="width:70px"></label><button class="btn gold small" data-rm="loop">شغّلي دورة المتابعة</button></div>
+    return `<section class="panel card rm" id="lpTop"><div class="row"><h2 class="grow" style="margin:0">حلقة المتابعة (الدورات)</h2><label class="small-print">أقصى دورات للناتج<input type="number" id="lpMax" min="1" max="5" value="${d.cfg.maxCycles}" class="t-input" style="width:70px"></label><button class="btn gold small" data-rm="loop">شغّلي دورة المتابعة</button><button class="btn ghost small" data-rm="regen" title="تحذف المسودات غير المعدّلة من المحاولة العلاجية الثانية فأكثر وتعيد توليدها بأساليب لم تُجرَّب">أعيدي توليد المسودات المكررة</button></div>
       <p class="small-print muted">الدورة: خطة ← تنفيذ بقراركِ ← قياس ← إن لم تتحقق تُصاغ مسودة بأسلوب جديد بمسوّغ مكتوب، وبعد ${d.cfg.maxCycles} دورات دون تحقق تُحال الحالة إليكِ. لا يعتمد الوكيل شيئًا ولا يرسل شيئًا؛ كل ما ينتجه مسودات.</p>
       ${memOnly ? '<div class="banner bad" style="margin:6px 0"><div>تعذّر الحفظ في المتصفح: الذاكرة لهذه الجلسة فقط.</div></div>' : ''}
       ${eps.length ? `<div class="t-scroll" style="max-height:360px"><table class="t-table"><thead><tr><th>الطالبة</th><th>الناتج</th><th>الدورات (الأسلوب ← النتيجة)</th><th>الحالة</th></tr></thead><tbody>${eps.map(e => `<tr><td>${esc(e.name)}</td><td>${esc((e.outcome || e.qid).slice(0, 50))}</td>
@@ -183,5 +202,5 @@
     </section>`;
   }
 
-  MDQ.loop = { VERSION, KEY, MIN_EVID, STRATS, byId, available, pick, usedOf, episode, blocked, record, refer, observe, snapshot, proposeGoals, advance, load, save, reset, wipe, maxCycles, setMaxCycles, html, ACT, stat, score };
+  MDQ.loop = { VERSION, KEY, MIN_EVID, STRATS, byId, available, pick, usedOf, episode, blocked, record, refer, backfill, dropCycle, observe, snapshot, proposeGoals, advance, load, save, reset, wipe, maxCycles, setMaxCycles, html, ACT, stat, score };
 })();

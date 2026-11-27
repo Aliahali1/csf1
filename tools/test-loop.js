@@ -91,4 +91,18 @@ ok(!/fetch\(|XMLHttpRequest|sendBeacon|WebSocket|importScripts|eval\(/.test(src.
 L.wipe(); ok(L.load().snaps.length === 0 && Object.keys(L.load().episodes).length === 0, 'مسح الذاكرة');
 // 10) لا تعديل على الأسئلة/البيانات المصدرية
 ok(B.question('db-03') === def && JSON.stringify(S1.q.get('db-03').attempts).includes('choice'), 'لا تعديل على السؤال ولا على محاولات الطالبات');
+
+// 11) خطط سابقة لإصدار الحلقة (بلا سجل دورات): لا يتكرر أسلوب الكتاب، وإعادة التوليد تعمل
+reset(); { const d0 = R.load(); const legacy = (att, post, st) => ({ key: 'S1|db-03|' + att, studentId: 'S1', name: 'سارة أحمد', cls: '3/1', qid: 'db-03', outcome: 'ناتج db-03', lesson: 'db', kind: R.kindOf('db-03'), week: att + 1, attempt: att, game: { attempts: 3, correct: 1, share: 33, tries: 3 }, base: false, post: false, diagnosis: 'احتمال: x', book: null, steps: [{ t: 'خطوة', min: 5 }], note: '', status: st, createdAt: '2026-11-27T10:00:00Z', approvedAt: st === 'approved' ? '2026-11-27T10:05:00Z' : null, afterPass: post });
+  d0.plans['S1|db-03|0'] = legacy(0, false, 'approved'); R.save(); }
+let rl = R.send(A, 'db-03', ['S1']); const pl1 = R.load().plans['S1|db-03|1'];
+ok(rl.made === 1 && pl1.strategy !== 'book' && /جُرّب سابقًا/.test(pl1.rationale), 'خطة سابقة بلا حلقة: الثانية بأسلوب غير الكتاب مع ذكر المجرَّب');
+ok(L.episode('S1', 'db-03').cycles[0].legacy === true && L.episode('S1', 'db-03').cycles[0].result === false, 'استُكمل سجل الدورة الأولى من الخطة السابقة');
+ok(L.stat(R.kindOf('db-03') === 'procedure' ? 'procedure' : 'concept', 'book').t === 1, 'نتيجة الخطة السابقة دخلت ذاكرة الأساليب');
+// مسودة مكررة قديمة (strategy كتاب، أُنشئت بلا سجل) ثم إعادة التوليد
+{ const d1 = R.load(); d1.plans['S1|db-03|1'].strategy = 'book'; d1.plans['S1|db-03|1'].rationale = 'أول دورة'; R.save(); }
+const rg = R.regenerate(A); ok(rg.removed === 1 && rg.made === 1 && R.load().plans['S1|db-03|1'].strategy !== 'book', 'إعادة التوليد تستبدل المسودة المكررة بأسلوب جديد');
+ok(R.load().plans['S1|db-03|0'].status === 'approved', 'إعادة التوليد لا تمسّ المعتمدة');
+{ const d2 = R.load(); d2.plans['S1|db-03|1'].status = 'edited'; R.save(); } ok(R.regenerate(A).removed === 0, 'ولا المعدّلة');
+
 console.log(`✔ test-loop: ${n} فحصًا ناجحًا`);

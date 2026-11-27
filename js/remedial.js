@@ -122,7 +122,7 @@
     if (A.tally && A.tally.pending) return { ok: false, msg: 'توقّفتُ: ' + A.tally.pending + ' اسمًا في الاختبار البعدي لم تُحسم مطابقته. أكملي القرارات أولًا ثم أعيدي الإرسال.' };
     if (!ids || !ids.length) return { ok: false, msg: 'حدّدي طالبة واحدة على الأقل.' };
     const d = load(); let made = 0, kept = 0, deferred = 0, studs = 0, referred = 0;
-    if (MDQ.loop) MDQ.loop.observe(Object.values(d.plans));
+    if (MDQ.loop) { MDQ.loop.backfill(Object.values(d.plans)); MDQ.loop.observe(Object.values(d.plans)); }
     ids.forEach(id => {
       const lv = [];
       A.rows.forEach(r => { if (r.counted === false) return; const p = (r.per || []).find(x => x.s.studentId === id); if (p) lv.push({ qid: r.qid, outcome: r.outcome, lesson: r.lesson, base: !!p.base, post: !!p.post, tries: p.tries, s: p.s, game: gameOf(p.s, r.qid), kind: kindOf(r.qid) }); });
@@ -349,6 +349,7 @@
     body.onclick = async e => {
       const b = e.target.closest('[data-rm]'); if (!b) return; const a = b.dataset.rm, k = pk(b);
       try {
+        if (a === 'regen') { if (!A) { msg('ارفعي ملف الاختبار البعدي أولًا.'); return; } if (confirm('حذف المسودات غير المعدّلة من المحاولة الثانية فأكثر وإعادة توليدها بأساليب جديدة؟ لا تمسّ المعتمدة ولا المعدّلة.')) { const r = regenerate(A); msg(r.msg); render(); } return; }
         if (a === 'loop') { const st = Pp0().getSet(); const r = MDQ.loop.advance(A, st && st.target, st && st.file); msg(r.msg); render(); return; }
         if (a === 'ok') { const r = approve(k); msg(r.msg); render(); return; }
         if (a === 'edit') { this_edit[k] = true; render(); return; }
@@ -392,8 +393,16 @@
     body.querySelectorAll('[data-rmdec]').forEach(s => s.onchange = () => { if (!s.value) return; af.decisions[s.closest('tr').dataset.rmk] = s.value; save(); log('قرار مطابقة اسم في ملف ما بعد المعالجة', s.value === 'x' ? 'استبعاد' : 'إقرار'); render(); });
   }
 
+  /** يحذف المسودات غير المعدّلة من المحاولة الثانية فأكثر ويعيد توليدها بأساليب جديدة (لا يمسّ المعتمدة ولا المعدّلة) */
+  function regenerate(A) {
+    const d = load(), ids = new Set(); let removed = 0;
+    Object.values(d.plans).forEach(p => { if (p.status === 'draft' && p.attempt > 0) { ids.add(p.studentId); delete d.plans[p.key]; removed++; if (MDQ.loop) MDQ.loop.dropCycle(p.studentId, p.qid, p.key); } });
+    if (!removed) return { ok: true, removed: 0, made: 0, msg: 'لا مسودات غير معدّلة من المحاولة الثانية فأكثر.' };
+    save(); log('إعادة توليد مسودات', removed + ' مسودة لـ ' + ids.size + ' طالبة');
+    const r = send(A, '', [...ids]); return Object.assign({ removed }, r, { msg: 'حُذفت ' + removed + ' مسودة غير معدّلة، ' + (r.ok ? r.msg : r.msg) });
+  }
   /** زر وكيل الأهداف: يُستدعى من goals-view */
   function sendFromGoals(A, qid, ids) { return send(A, qid, ids); }
 
-  MDQ.remedial = { topFailing, weakGroup, strengthOf, VERSION, KEY, MAXOPEN, load, save, wipe, reset, send, sendFromGoals, buildPlan, designSteps, diagnose, prioritize, gameOf, setSteps, approve, reopen, remove, ingestAfter, computeAfter, summarize, view, kindOf };
+  MDQ.remedial = { regenerate, topFailing, weakGroup, strengthOf, VERSION, KEY, MAXOPEN, load, save, wipe, reset, send, sendFromGoals, buildPlan, designSteps, diagnose, prioritize, gameOf, setSteps, approve, reopen, remove, ingestAfter, computeAfter, summarize, view, kindOf };
 })();

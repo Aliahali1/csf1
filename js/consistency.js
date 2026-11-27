@@ -11,7 +11,7 @@
 (function () {
   window.MDQ = window.MDQ || {};
   const CK = 'mdq.agent.consist.v1', VERSION = '1.0.0';
-  const DEFAULTS = { tol: 10, mastery: 80, minPairs: 8, minOutcomes: 5, site: 'best', k: 8, B: 1000 };
+  const DEFAULTS = { tol: 10, mastery: 80, minPairs: 8, minOutcomes: 5, site: 'best', k: 8, B: 1000, flag: null };
   const rd = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } };
   const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const log = (ev, d) => { try { if (MDQ.goals) MDQ.goals.logEvent('consistency', ev, d || ''); } catch (e) {} };
@@ -26,9 +26,9 @@
     const c = Object.assign({}, DEFAULTS, o || {});
     c.tol = Math.max(1, Math.min(50, +c.tol || DEFAULTS.tol)); c.mastery = Math.max(1, Math.min(100, +c.mastery || DEFAULTS.mastery));
     c.minPairs = Math.max(3, Math.min(60, Math.round(+c.minPairs || DEFAULTS.minPairs))); c.minOutcomes = Math.max(3, Math.round(+c.minOutcomes || DEFAULTS.minOutcomes));
-    c.k = Math.max(2, Math.min(12, Math.round(+c.k || DEFAULTS.k))); c.site = c.site === 'by3' ? 'by3' : 'best'; c.B = DEFAULTS.B; return c;
+    c.k = Math.max(2, Math.min(12, Math.round(+c.k || DEFAULTS.k))); c.site = c.site === 'by3' ? 'by3' : 'best'; c.B = DEFAULTS.B; c.flag = c.flag != null && +c.flag >= 1 && +c.flag <= 100 ? Math.round(+c.flag) : null; return c;
   };
-  const describe = c => `فرق الاتفاق ≤ ${c.tol} نقاط · حد الإتقان ${c.mastery}٪ · أقل ${c.minPairs} أزواج · قياس اللعبة النهائي: ${c.site === 'by3' ? 'حتى الثالثة' : 'آخر ما وصلت إليه'} · أضعف ${c.k || DEFAULTS.k} نواتج للتداخل`;
+  const describe = c => `فرق الاتفاق ≤ ${c.tol} نقاط · حد الإتقان ${c.mastery}٪ · أقل ${c.minPairs} أزواج · قياس اللعبة النهائي: ${c.site === 'by3' ? 'حتى الثالثة' : 'آخر ما وصلت إليه'} · أضعف ${c.k || DEFAULTS.k} نواتج للتداخل${c.flag ? ' · عتبة وسم اللعبة (الأولى) ' + c.flag + '٪' : ''}`;
   /** يعتمد العتبات قبل رؤية النتائج. forSet = وقت رفع ملف البعدي الذي تخصه. */
   function lock(values, forSet) {
     const c = Object.assign(clean(values), { declaredAt: new Date().toISOString(), forSet: forSet || '', viewedAt: null, changedAfterView: false, history: [] });
@@ -138,7 +138,7 @@
     res.level1 = { agreeN: outs.filter(o => o.agree).length, classAgreeN: outs.filter(o => o.classAgree).length, cls, rho: N >= cfg.minOutcomes ? spearman(xs, ys) : null, ccc: N >= cfg.minOutcomes ? ccc(xs, ys) : null,
       meanDiff: md, loa: [md - 1.96 * sd, md + 1.96 * sd], satN: outs.filter(o => o.saturated).length };
     // التشخيص: المحاولة الأولى (فحص) مقابل البعدي (مرجع) — أساس الاتساق لأن أداء اللعبة النهائي مشبَّع عادةً
-    const fx = outs.map(o => o.first), m = cfg.mastery, gw = o => o.first < m, pw = o => o.post < m;
+    const fx = outs.map(o => o.first), m = cfg.mastery, fl = cfg.flag || m, gw = o => o.first < fl, pw = o => o.post < m;
     const sc = { tp: outs.filter(o => gw(o) && pw(o)).length, fn: outs.filter(o => !gw(o) && pw(o)).length, fp: outs.filter(o => gw(o) && !pw(o)).length, tn: outs.filter(o => !gw(o) && !pw(o)).length };
     const ratio = (a, b) => a + b ? a / (a + b) * 100 : null, gains = outs.map(o => o.post - o.first);
     const kk = Math.min(cfg.k, Math.floor(N / 2)), les = {};
@@ -222,6 +222,7 @@
         <tr><th>بلغت الحد في اللعبة</th><td class="num">${X.sc.fn}</td><td class="num">${X.sc.tn}</td></tr></tbody></table></div>
       <p class="small-print">الوحدة هنا الناتج (${R.N} ناتجًا). متوسط ما زاده البعدي على المحاولة الأولى: ${f(X.meanGain, 1)} نقطة. الارتباط والتداخل يقيسان اتفاق <b>الترتيب</b> (أيّ النواتج أضعف)، لا تطابق المستوى؛ فالمحاولة الأولى تسبق التعلم والأسئلة مختلفة، فالفرق في المستوى متوقع. الدلالة بالتبديل وصفية على ${R.N} ناتجًا مجمّعًا ولا تُعمَّم.</p>
       <details><summary class="small-print">متوسط كل درس: الأولى مقابل البعدي</summary><div class="t-scroll"><table class="t-table"><thead><tr><th>الدرس</th><th>النواتج</th><th>الأولى ٪</th><th>البعدي ٪</th></tr></thead><tbody>${lessonRows}</tbody></table></div></details>
+      ${MDQ.calibration ? MDQ.calibration.html(R.outcomes, cfg, esc) : ''}
       <h4 style="margin:12px 0 4px">② آخر ما وصلت إليه الطالبة في اللعبة مقابل البعدي ${P.satSite >= 95 ? '<span class="pill na">مشبَّع</span>' : ''}</h4>
       ${P.satSite >= 95 ? '<p class="small-print muted">أصابت الطالبات في اللعبة في النهاية بنسبة تقارب 100٪ (تحاول حتى تصيب)، فهذا القياس لا يميّز بين النواتج؛ اتفاق الأزواج يساوي تقريبًا نسبة نجاح البعدي، وارتباط الرتب وCCC قريبان من الصفر بحكم غياب التباين لا بسبب عدم اتساق. يُعرض للشفافية فقط.</p>' : ''}
       <div class="kpis num">
@@ -255,6 +256,7 @@
     const ap = q('#cApply'); if (ap) ap.onclick = () => { change(read()); ctx.render(); };
     const cfg = getCfg(); if (!cfg || (cfg.forSet && cfg.forSet !== (set ? set.at : ''))) return;
     const R = compute(A.rows, cfg), Q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    if (MDQ.calibration) MDQ.calibration.bind(root, R.outcomes, cfg, ctx);
     const cv = q('#cCsv'); if (cv) cv.onclick = async () => {
       const head = ['الدرس', 'الناتج', 'ن', 'اللعبة %', 'الأولى %', 'البعدي %', 'الفرق', 'اتفاق الأزواج %', 'كابا', 'ماكنمار ف', 'الحكم', 'اختلاف التصنيف', 'تشبّع'];
       const rowsCsv = R.outcomes.map(o => [lessonName[o.lesson], o.outcome, o.n, r1(o.site), r1(o.first), r1(o.post), r1(o.diff), r1(o.agreePct), o.saturated ? '' : r2(o.kappa), o.p == null ? '' : +o.p.toFixed(4), o.agree ? 'متفق' : 'غير متفق', o.classAgree ? '' : 'نعم', o.saturated ? 'نعم' : '']);

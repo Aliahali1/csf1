@@ -25,8 +25,8 @@
     return mem;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(mem)); memOnly = false; return true; } catch (e) { memOnly = true; return false; } }
-  function wipe() { mem = blank(); try { localStorage.removeItem(KEY); } catch (e) {} memOnly = false; log('مُسحت بيانات وكيل الخطط العلاجية', ''); }
-  function reset() { mem = null; }
+  function wipe() { mem = blank(); try { localStorage.removeItem(KEY); } catch (e) {} memOnly = false; if (MDQ.loop) MDQ.loop.wipe(); log('مُسحت بيانات وكيل الخطط العلاجية', ''); }
+  function reset() { mem = null; if (MDQ.loop) MDQ.loop.reset(); }
   const log = (ev, d) => { try { if (G()) G().logEvent('remedial', ev, d || ''); } catch (e) {} };
   const now = () => new Date().toISOString();
 
@@ -57,11 +57,16 @@
   }
 
   /* ---------- تصميم الخطة من الكتاب ---------- */
-  function designSteps(qid, attempt) {
+  function designSteps(qid, attempt, c) {
     const e = MDQ.textbook && MDQ.textbook.get(qid);
     if (!e) return { book: null, steps: [], note: 'لا يوجد في الكتاب ما يخدم هذا الناتج؛ لا أقترح من خارجه.' };
     const L = MDQ.textbook.LESSONS[e.file] || {}, acts = e.activity || [], a = acts.length ? acts[attempt % acts.length] : null;
     const alt = attempt > 0 ? 'بأسلوب مختلف عن المحاولة السابقة: ' : '';
+    const SD = c && c.strategy && MDQ.loop ? MDQ.loop.byId(c.strategy) : null;
+    if (SD) { // الأسلوب المختار من حلقة المتابعة (مصدره الكتاب وبيانات الطالبة نفسها)
+      const steps = SD.steps(Object.assign({ entry: e, attempt }, c));
+      return { book: { file: e.file, title: L.title || e.file, unit: L.unit || '', pages: e.pages, section: e.section }, guide: MDQ.textbook.guideFor(qid), steps, note: '' };
+    }
     const steps = [
       { t: 'راجعي في الكتاب «' + (L.title || e.file) + '» (' + MDQ.textbook.pg(e) + ') موضع «' + e.section + '»: ' + e.points, min: STEP_MIN[0] },
       { t: alt + (a ? 'نفّذي ' + a.n + ' (ص' + a.p + (a.what ? ': ' + a.what : '') + ').' : 'نفّذي مثالًا تطبيقيًا قصيرًا على الناتج من الكتاب.'), min: STEP_MIN[1] },
@@ -72,11 +77,26 @@
   }
 
   /** يبني خطة طالبة لناتج؛ attempt = رقم المحاولة العلاجية (0 للأولى) */
-  function buildPlan(stu, o, attempt, week) {
-    const d = designSteps(o.qid, attempt), r = rowOf(o.qid);
+  function buildPlan(stu, o, attempt, week, ex) {
+    ex = ex || {}; const d = designSteps(o.qid, attempt, ex.strategy ? ex : null), r = rowOf(o.qid);
+    const dx = ex.distractor && ex.distractor.mineText ? ' الخيار الذي اختارته في اللعبة: «' + ex.distractor.mineText + '».' : '';
     return { key: key(stu.studentId, o.qid, attempt), studentId: stu.studentId, name: stu.name, cls: stu.className || '', qid: o.qid, outcome: o.outcome || (r && r.outcome) || o.qid,
-      lesson: o.lesson || (r && r.lesson) || '', kind: kindOf(o.qid), week, attempt, game: o.game, base: !!o.base, post: false, diagnosis: diagnose(o.game, o.base),
+      lesson: o.lesson || (r && r.lesson) || '', kind: kindOf(o.qid), week, attempt, game: o.game, base: !!o.base, post: false, diagnosis: diagnose(o.game, o.base) + dx,
+      strategy: ex.strategy || null, rationale: ex.rationale || '', peers: ex.peers || [], distractor: ex.distractor && ex.distractor.mineText ? { key: ex.distractor.mine, text: ex.distractor.mineText, share: ex.distractor.mineShare } : null,
       book: d.book, guide: d.guide, steps: d.steps, note: d.note, status: 'draft', createdAt: now(), editedAt: null, approvedAt: null, afterPass: null };
+  }
+
+  /** سياق اختيار الأسلوب لطالبة وناتج: يُبنى من بيانات التحليل نفسها (لا مصدر خارجي) */
+  function strategyContext(A, s, x, attempt) {
+    const L = MDQ.loop; if (!L) return null;
+    const stus = [], seen = new Set();
+    A.rows.forEach(r => (r.per || []).forEach(p => { if (!seen.has(p.s.studentId)) { seen.add(p.s.studentId); stus.push(p.s); } }));
+    let def = null; try { def = MDQ.bank && MDQ.bank.question(x.qid); } catch (e) {}
+    const dis = MDQ.distractors && def ? MDQ.distractors.forStudent(stus, s, x.qid, def) : null;
+    const row = A.rows.find(r => r.qid === x.qid), peers = [];
+    if (row) (row.per || []).forEach(p => { if (p.post && p.s.studentId !== s.studentId && (p.s.className || '') === (s.className || '') && peers.length < 2) peers.push(p.s.name); });
+    let stage = null; try { const l = MDQ.bank && MDQ.bank.lesson(x.lesson); stage = l && l.stage; } catch (e) {}
+    return { kind: x.kind, attempt, entry: MDQ.textbook ? MDQ.textbook.get(x.qid) : null, distractor: dis && dis.usable ? Object.assign({ mine: dis.mine }, dis, { class: dis.class }) : null, peers, stage, used: L.usedOf(s.studentId, x.qid) };
   }
 
   /** ترتيب أولويات النواتج لطالبة: المختار أولًا، ثم الضعف المستمر، ثم المفهوم قبل الإجراء، ثم ترتيب الدروس */
@@ -101,7 +121,8 @@
     if (!A || !A.rows) return { ok: false, msg: 'ارفعي ملف الاختبار البعدي أولًا.' };
     if (A.tally && A.tally.pending) return { ok: false, msg: 'توقّفتُ: ' + A.tally.pending + ' اسمًا في الاختبار البعدي لم تُحسم مطابقته. أكملي القرارات أولًا ثم أعيدي الإرسال.' };
     if (!ids || !ids.length) return { ok: false, msg: 'حدّدي طالبة واحدة على الأقل.' };
-    const d = load(); let made = 0, kept = 0, deferred = 0, studs = 0;
+    const d = load(); let made = 0, kept = 0, deferred = 0, studs = 0, referred = 0;
+    if (MDQ.loop) MDQ.loop.observe(Object.values(d.plans));
     ids.forEach(id => {
       const lv = [];
       A.rows.forEach(r => { if (r.counted === false) return; const p = (r.per || []).find(x => x.s.studentId === id); if (p) lv.push({ qid: r.qid, outcome: r.outcome, lesson: r.lesson, base: !!p.base, post: !!p.post, tries: p.tries, s: p.s, game: gameOf(p.s, r.qid), kind: kindOf(r.qid) }); });
@@ -119,13 +140,20 @@
           attempt = last.attempt + 1;
         }
         if (open >= MAXOPEN) { deferred++; return; }
-        const p = buildPlan(s, x, attempt, plansOf(id).length + 1);
-        d.plans[p.key] = p; open++; made++;
+        let ex = null;
+        if (MDQ.loop) {
+          const bl = MDQ.loop.blocked(id, x.qid); if (bl && bl !== 'mastered') { referred++; if (bl === 'max') MDQ.loop.refer(id, x.qid, s.name, x.outcome, x.kind); return; }
+          const sc = strategyContext(A, s, x, attempt), pk = sc ? MDQ.loop.pick(sc) : null;
+          if (pk && pk.strategy) ex = Object.assign({ strategy: pk.strategy, rationale: pk.rationale }, sc);
+          else if (pk && attempt > 0) { referred++; MDQ.loop.refer(id, x.qid, s.name, x.outcome, x.kind, pk.rationale); return; }
+        }
+        const p = buildPlan(s, x, attempt, plansOf(id).length + 1, ex);
+        d.plans[p.key] = p; open++; made++; if (MDQ.loop) MDQ.loop.record(p);
       });
     });
     save();
     log('أُنشئت خطط علاجية', made + ' خطة لـ ' + studs + ' طالبة' + (deferred ? ' · مؤجَّل ' + deferred : '') + (kept ? ' · قائم ' + kept : ''));
-    return { ok: true, made, kept, deferred, studs, msg: 'أُنشئت ' + made + ' خطة مسودة لـ ' + studs + ' طالبة' + (kept ? ' (' + kept + ' قائمة سابقًا لم تُكرَّر)' : '') + (deferred ? ' · ' + deferred + ' ناتجًا مؤجَّلًا (يكفي ' + MAXOPEN + ' خطط مفتوحة للطالبة)' : '') + '.' };
+    return { ok: true, made, kept, deferred, referred, studs, msg: 'أُنشئت ' + made + ' خطة مسودة لـ ' + studs + ' طالبة' + (kept ? ' (' + kept + ' قائمة سابقًا لم تُكرَّر)' : '') + (deferred ? ' · ' + deferred + ' ناتجًا مؤجَّلًا (يكفي ' + MAXOPEN + ' خطط مفتوحة للطالبة)' : '') + (referred ? ' · ' + referred + ' حالات مُحالة إليكِ لمراجعة فردية' : '') + '.' };
   }
 
   /* ---------- التعديل والاعتماد ---------- */
@@ -243,6 +271,8 @@
         <li><b>التصميم:</b> خطة من 3 خطوات (شرح من الكتاب، نشاط تطبيقي، تحقق ذاتي) في نحو 15 دقيقة، وبما لا يزيد على ${MAXOPEN} خطط مفتوحة للطالبة وخطة واحدة في الأسبوع.</li>
         <li><b>الاعتماد:</b> تعدّلين ثم تعتمدين بأيقونة الصح؛ الخطة المعتمدة تُقفل ويمكن إعادة فتحها.</li>
         <li><b>بعد المعالجة:</b> ترفعين ملف إجابات الطالبات فيطابق الأسماء ويحسب التحسّن ويكتب التوصيات.</li></ol></details></section>`;
+    if (MDQ.loop) { if (AF) MDQ.loop.observe(Object.values(d.plans)); h += MDQ.loop.html(esc, T); }
+    if (MDQ.distractors && plans.length) h += `<section class="panel card rm">${MDQ.distractors.html(model.students, [...new Set(plans.map(p => p.qid))], esc)}</section>`;
     if (!plans.length) {
       h += `<section class="panel card rm"><p>لا خطط بعد. ${A ? 'اذهبي إلى «وكيل الأهداف» ← «طالبات يُقترح دعمهن في هذا الناتج»، حدّدي الطالبات ثم اضغطي «إرسال المحددات إلى وكيل الخطط العلاجية».' : 'ارفعي أولًا ملف الاختبار البعدي في «وكيل الأهداف».'}</p></section>`;
     } else {
@@ -257,6 +287,7 @@
           h += `<div class="rm-plan" data-pk="${esc(p.key)}"><div class="row"><b class="grow">${esc(p.outcome)}</b><span class="pill na">الأسبوع ${p.week}</span>${p.attempt ? `<span class="pill mid">محاولة علاجية ${p.attempt + 1}</span>` : ''}${group ? `<span class="pill ok">مجموعة صغيرة (${group + 1})</span>` : ''}<span class="pill ${st[1]}" id="rs-${esc(p.key)}">${st[0]}</span>
               <button class="rm-ok" data-rm="ok" aria-pressed="${p.status === 'approved'}" title="${p.status === 'approved' ? 'تم اعتماد الخطة' : 'اعتماد الخطة'}" aria-label="${p.status === 'approved' ? 'تم اعتماد الخطة' : 'اعتماد الخطة'}" ${p.status === 'approved' ? 'disabled' : ''}>${OKSVG}</button></div>
             <p class="small-print" style="margin:2px 0">${esc(p.diagnosis)}</p>
+            ${p.strategy && MDQ.loop && MDQ.loop.byId(p.strategy) ? `<p class="small-print" style="margin:2px 0"><b>الأسلوب:</b> ${esc(MDQ.loop.byId(p.strategy).label)} <span class="muted">— ${esc(p.rationale || '')}</span></p>` : ''}
             ${p.steps.length ? (ed && p.status !== 'approved' ? `<ol class="rm-steps">${p.steps.map((s, i) => `<li><textarea class="t-input" data-rms="${i}" rows="2" style="width:100%">${esc(s.t)}</textarea><label class="small-print">الدقائق<input class="t-input" data-rmm="${i}" type="number" min="1" max="60" value="${s.min}" style="width:70px"></label><button class="btn ghost small" data-rm="delstep" data-i="${i}">حذف الخطوة</button></li>`).join('')}</ol>
               <div class="row"><button class="btn gold small" data-rm="savestep">احفظي التعديل</button><button class="btn ghost small" data-rm="canceledit">إلغاء</button></div>`
               : `<ol class="rm-steps">${p.steps.map(s => `<li>${esc(s.t)} <span class="muted small-print">(${s.min} د)</span></li>`).join('')}</ol>`) : `<div class="banner info" style="margin:4px 0"><div>${esc(p.note)}</div></div>`}
@@ -309,7 +340,7 @@
     body.innerHTML = h;
     bind(body, ctx, plans, A, AF);
   }
-  const this_edit = {};
+  const this_edit = {}; const Pp0 = () => P();
 
   function bind(body, ctx, plans, A, AF) {
     const { esc, msg, render, I } = ctx, d = load(), Q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
@@ -318,6 +349,7 @@
     body.onclick = async e => {
       const b = e.target.closest('[data-rm]'); if (!b) return; const a = b.dataset.rm, k = pk(b);
       try {
+        if (a === 'loop') { const st = Pp0().getSet(); const r = MDQ.loop.advance(A, st && st.target, st && st.file); msg(r.msg); render(); return; }
         if (a === 'ok') { const r = approve(k); msg(r.msg); render(); return; }
         if (a === 'edit') { this_edit[k] = true; render(); return; }
         if (a === 'canceledit') { delete this_edit[k]; render(); return; }
@@ -352,6 +384,7 @@
       } catch (err) { msg(err && err.message ? err.message : 'تعذّر تنفيذ الأمر.'); }
     };
     const af = d.after;
+    const lm = body.querySelector('#lpMax'); if (lm) lm.onchange = e => { MDQ.loop.setMaxCycles(e.target.value); render(); };
     const on = (sel, fn) => { const el = body.querySelector(sel); if (el) el.onchange = fn; };
     on('#rmMode', e => { af.mode = e.target.value; save(); render(); }); on('#rmMax', e => { af.max = Math.max(1, +e.target.value || 1); save(); render(); });
     on('#rmPass', e => { af.pass = Math.max(1, Math.min(100, +e.target.value || 100)); save(); render(); }); on('#rmRe', e => { af.reworded = e.target.checked; save(); render(); });
